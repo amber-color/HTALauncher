@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=Edge">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>HTALauncher</title>
+<HTA:APPLICATION
+    ID="oHTA"
+    APPLICATIONNAME="HTALauncher"
+    BORDER="thin"
+    BORDERSTYLE="normal"
+    CAPTION="yes"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="yes"
+    SCROLL="no"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    VERSION="1.0"
+    WINDOWSTATE="normal"
+    ALWAYSONTOP="yes"
+/>
+<style>
+/* ===== リセット ===== */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: 'c', 'BIZ UDPGothic', 'Segoe UI', Tahoma, sans-serif; font-size: 13px; }
+
+/* ===== テーマ: ダーク ===== */
+body.dark  { background: #1C1C1C; color: #D2D2D2; }
+body.light { background: #F3F3F3; color: #1E1E1E; }
+
+/* ===== ヘッダー (絶対配置) ===== */
+#launcher { position: relative; width: 100%; height: 100%; }
+#header   { position: absolute; top: 0;    left: 0; right: 0; height: 44px;
+            display: -ms-flexbox; display: flex;
+            -ms-flex-align: center; align-items: center; padding: 0 8px; }
+body.dark  #header { background: #1C1C1C; }
+body.light #header { background: #F3F3F3; }
+
+#search-box { width: 1px; -ms-flex: 1 1 auto; flex: 1 1 auto; height: 26px; padding: 0 8px; font-family: inherit; margin-right: 4px; }
+body.dark  #search-box { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light #search-box { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+#search-box:focus { outline: none; }
+
+.hbtn { width: 32px; height: 26px; border: none; font-size: 1.077em; cursor: pointer; padding: 0; margin-left: 3px; -ms-flex-negative: 0; flex-shrink: 0; }
+body.dark  .hbtn { background: #3A3A3A; color: #D2D2D2; }
+body.light .hbtn { background: #FFF;    color: #1E1E1E; }
+body.dark  .hbtn:hover { background: #505050; }
+body.light .hbtn:hover { background: #DEDEDE; }
+.hbtn.active { background: #0078D7; color: #FFF; }
+
+/* ===== タブパネル (絶対配置) ===== */
+#tab-panel { position: absolute; top: 44px; left: 0; right: 0; height: 34px;
+             overflow-x: auto; overflow-y: hidden; padding: 4px; }
+body.dark  #tab-panel { background: #1C1C1C; }
+body.light #tab-panel { background: #F3F3F3; }
+
+.tbtn { height: 26px; padding: 0 10px; font-family: inherit; font-size: 0.923em; cursor: pointer; margin-right: 3px; border: none; border-bottom: 2px solid transparent; background: transparent; }
+body.dark  .tbtn { color: #999; }
+body.light .tbtn { color: #666; }
+.tbtn.active { border-bottom-color: #0078D7; color: #0078D7; }
+
+/* ===== コンテンツエリア (絶対配置・残り全高) ===== */
+#content { position: absolute; top: 78px; left: 0; right: 0; bottom: 0; overflow-y: auto; overflow-x: hidden; padding: 6px; }
+body.dark  #content { background: #1C1C1C; }
+body.light #content { background: #F3F3F3; }
+
+/* ===== グリッドビュー ===== */
+/* gcell の width/height/gicon サイズは renderGrid で動的設定 */
+.gcell { display: inline-block; margin: 2px; text-align: center; cursor: pointer; vertical-align: top; border-radius: 3px; }
+body.dark  .gcell:hover { background: #373737; }
+body.light .gcell:hover { background: #D0D0D0; }
+.gcell.drag-over { background: #005A9E; }
+.gcell.drag-src  { opacity: .45; }
+
+.gicon { margin: 4px auto 0;
+         display: -ms-flexbox; display: flex;
+         -ms-flex-align: center; align-items: center;
+         -ms-flex-pack: center; justify-content: center;
+         font-weight: bold; color: #FFF; border-radius: 6px; overflow: hidden; }
+.gicon img { width: 100%; height: 100%; }
+
+.glabel { font-size: 0.769em; text-align: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; width: 68px; margin: 3px auto 0; }
+body.dark  .glabel { color: #D2D2D2; }
+body.light .glabel { color: #1E1E1E; }
+
+/* ===== リストビュー ===== */
+#list-tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
+#list-tbl tr { cursor: pointer; }
+body.dark  #list-tbl tr:hover td { background: #373737; }
+body.light #list-tbl tr:hover td { background: #D0D0D0; }
+#list-tbl td { padding: 5px 8px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+body.dark  #list-tbl td { color: #D2D2D2; border-bottom: 1px solid #333; }
+body.light #list-tbl td { color: #1E1E1E; border-bottom: 1px solid #DDD; }
+
+.licon { display: -ms-inline-flexbox; display: inline-flex;
+         -ms-flex-align: center; align-items: center;
+         -ms-flex-pack: center; justify-content: center;
+         width: 22px; height: 22px; font-size: 0.846em; font-weight: bold;
+         color: #FFF; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+
+/* ===== 設定オーバーレイ ===== */
+#settings { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 10;
+            display: none; -ms-flex-direction: column; flex-direction: column; font-size: inherit; }
+#settings.open { display: -ms-flexbox; display: flex; }
+body.dark  #settings { background: #1C1C1C; color: #D2D2D2; }
+body.light #settings { background: #F3F3F3; color: #1E1E1E; }
+
+.shead { height: 40px; display: -ms-flexbox; display: flex;
+         -ms-flex-align: center; align-items: center;
+         -ms-flex-pack: justify; justify-content: space-between;
+         padding: 0 12px; -ms-flex-negative: 0; flex-shrink: 0; font-weight: bold; }
+body.dark  .shead { background: #1C1C1C; }
+body.light .shead { background: #F3F3F3; }
+
+.stabs { display: -ms-flexbox; display: flex; -ms-flex-negative: 0; flex-shrink: 0; }
+body.dark  .stabs { background: #1C1C1C; border-bottom: 1px solid #444; }
+body.light .stabs { background: #F3F3F3; border-bottom: 1px solid #CCC; }
+
+.stabtn { height: 32px; padding: 0 16px; border: none; border-bottom: 2px solid transparent;
+          background: transparent; font-family: inherit; cursor: pointer; }
+body.dark  .stabtn { color: #999; }
+body.light .stabtn { color: #666; }
+.stabtn.active { border-bottom-color: #0078D7; color: #0078D7; }
+
+.scontent { -ms-flex: 1; flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+.stab { display: none; }
+.stab.active { display: block; }
+
+/* ===== 設定: アプリリスト ===== */
+.abtnrow { margin-bottom: 8px; }
+.abtnrow .sbtn { margin-right: 5px; }
+
+.sbtn { height: 28px; padding: 0 12px; font-family: inherit; font-size: 0.923em; cursor: pointer; border-radius: 2px; }
+body.dark  .sbtn { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light .sbtn { background: #F0F0F0; color: #1E1E1E; border: 1px solid #CCC; }
+body.dark  .sbtn:hover { background: #505050; }
+body.light .sbtn:hover { background: #E0E0E0; }
+.sbtn.pri { background: #0078D7; color: #FFF; border-color: #0078D7; }
+.sbtn.pri:hover { background: #006CBF; }
+
+#app-tbl { width: 100%; border-collapse: collapse; table-layout: fixed;}
+#app-tbl th { text-align: left; padding: 3px 8px; font-size: 0.846em; }
+body.dark  #app-tbl th { color: #888; border-bottom: 1px solid #444; }
+body.light #app-tbl th { color: #666; border-bottom: 1px solid #CCC; }
+#app-tbl td { padding: 5px 8px; font-size: 0.923em; cursor: pointer; }
+body.dark  #app-tbl td { color: #D2D2D2; border-bottom: 1px solid #333; }
+body.light #app-tbl td { color: #1E1E1E; border-bottom: 1px solid #EEE; }
+#app-tbl td.icon-col, #app-tbl th.icon-col { width: 36px; padding: 0 4px; }
+#app-tbl tr.sel td { background: #0078D7; color: #FFF; }
+body.dark  #app-tbl tr:not(.sel):hover td { background: #2A2A2A; }
+body.light #app-tbl tr:not(.sel):hover td { background: #E8E8E8; }
+
+/* ===== 設定: オプションフォーム ===== */
+.srow { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; margin-bottom: 14px; font-size: inherit; }
+.slbl { width: 140px; font-size: inherit; }
+body.dark  .slbl { color: #CCC; }
+body.light .slbl { color: #333; }
+.srow select { width: 180px; height: 26px; padding: 0 6px; font-family: inherit; font-size: inherit; }
+body.dark  .srow select { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light .srow select { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+
+/* ===== Windows アイコンピッカー ===== */
+#iconpicker-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 30;
+                 display: none; -ms-flex-align: center; align-items: center;
+                 -ms-flex-pack: center; justify-content: center; background: rgba(0,0,0,.7); }
+#iconpicker-ov.open { display: -ms-flexbox; display: flex; }
+#iconpicker-box { width: 520px; height: 460px; border-radius: 4px;
+                  display: -ms-flexbox; display: flex;
+                  -ms-flex-direction: column; flex-direction: column; }
+body.dark  #iconpicker-box { background: #2D2D2D; border: 1px solid #555; }
+body.light #iconpicker-box { background: #FFF;    border: 1px solid #CCC; }
+.iph { height: 36px; display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center;
+       -ms-flex-pack: justify; justify-content: space-between; padding: 0 12px;
+       -ms-flex-negative: 0; flex-shrink: 0; font-weight: bold; }
+body.dark  .iph { background: #282828; color: #D2D2D2; }
+body.light .iph { background: #E5E5E5; color: #1E1E1E; }
+.ipc-search { display: -ms-flexbox; display: flex; padding: 8px 10px 6px;
+              -ms-flex-align: center; align-items: center; -ms-flex-negative: 0; flex-shrink: 0; }
+.ipc-search input { -ms-flex: 1; flex: 1; height: 26px; padding: 0 6px; font-family: inherit; margin-right: 6px; }
+body.dark  .ipc-search input { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light .ipc-search input { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+.ipc-search input:focus { outline: none; }
+#ipc-status { padding: 2px 12px 4px; font-size: 0.923em; -ms-flex-negative: 0; flex-shrink: 0; min-height: 20px; }
+body.dark  #ipc-status { color: #AAA; }
+body.light #ipc-status { color: #666; }
+#ipc-grid { -ms-flex: 1; flex: 1; overflow-y: auto; padding: 6px; }
+/* ipcell は常に白背景: SVG の currentColor (黒) を見えるようにする */
+.ipcell { display: inline-block; width: 44px; height: 44px; margin: 3px; cursor: pointer;
+          border-radius: 3px; text-align: center; line-height: 44px; vertical-align: top;
+          background: #F5F5F5; border: 1px solid transparent; }
+.ipcell:hover   { background: #E0EEFF; border-color: #0078D7; }
+.ipcell.selected { background: #CCE4FF; border-color: #0078D7; }
+.ipcell img { width: 32px; height: 32px; vertical-align: middle; }
+
+/* ===== アプリ追加/編集ダイアログ ===== */
+#dlg-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20;
+          display: none; -ms-flex-align: center; align-items: center;
+          -ms-flex-pack: center; justify-content: center; background: rgba(0,0,0,.55); }
+#dlg-ov.open { display: -ms-flexbox; display: flex; }
+
+#dlg-box { width: 460px; padding: 20px; border-radius: 4px; }
+body.dark  #dlg-box { background: #2D2D2D; border: 1px solid #555; }
+body.light #dlg-box { background: #FFF;    border: 1px solid #CCC; }
+
+.dlg-title { font-size: 1.077em; font-weight: bold; margin-bottom: 14px; }
+body.dark  .dlg-title { color: #D2D2D2; }
+body.light .dlg-title { color: #1E1E1E; }
+
+.dlg-row { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; margin-bottom: 10px; }
+.dlg-lbl { width: 100px; font-size: 0.923em; -ms-flex-negative: 0; flex-shrink: 0; }
+body.dark  .dlg-lbl { color: #CCC; }
+body.light .dlg-lbl { color: #333; }
+
+.dlg-inp { -ms-flex: 1; flex: 1; height: 26px; padding: 0 6px; font-family: inherit; }
+body.dark  .dlg-inp { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light .dlg-inp { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+.dlg-inp:focus { outline: none; }
+body.dark  .dlg-inp:focus { border-color: #0078D7; }
+body.light .dlg-inp:focus { border-color: #0078D7; }
+
+.dlg-btns { display: -ms-flexbox; display: flex; -ms-flex-pack: end; justify-content: flex-end; margin-top: 14px; }
+.dlg-btns .sbtn { margin-left: 8px; }
+</style>
+</head>
+<body class="dark">
+
+<!-- ランチャー画面 -->
+<div id="launcher">
+  <div id="header">
+    <input id="search-box" type="text" placeholder="検索...">
+    <button class="hbtn" id="btn-grid" title="グリッド">&#9638;</button>
+    <button class="hbtn" id="btn-list" title="リスト">&#9776;</button>
+    <button class="hbtn" id="btn-gear" title="設定">&#9881;</button>
+  </div>
+  <div id="tab-panel"></div>
+  <div id="content"></div>
+</div>
+
+<!-- 設定オーバーレイ -->
+<div id="settings">
+  <div class="shead">
+    <span>設定</span>
+    <button class="sbtn" id="btn-close-s">✕ 閉じる</button>
+  </div>
+  <div class="stabs">
+    <button class="stabtn active" id="st-apps">登録一覧</button>
+    <button class="stabtn"        id="st-cfg" >動作・外観</button>
+  </div>
+  <div class="scontent">
+
+    <!-- アプリ管理タブ -->
+    <div id="tab-apps" class="stab active">
+      <div class="abtnrow">
+        <button class="sbtn pri" id="s-add" >追加</button>
+        <button class="sbtn"     id="s-edit">編集</button>
+        <button class="sbtn"     id="s-del" >削除</button>
+        <button class="sbtn"     id="s-up"  >↑</button>
+        <button class="sbtn"     id="s-down">↓</button>
+      </div>
+      <table id="app-tbl">
+        <thead><tr>
+          <th class="icon-col"></th>
+          <th width="42%">&#34920;&#31034;&#21517;</th>
+          <th>&#12464;&#12523;&#12540;&#12503;</th>
+          <th>&#12497;&#12473;</th>
+        </tr></thead>
+        <tbody id="app-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- 設定タブ -->
+    <div id="tab-cfg" class="stab">
+      <div class="srow">
+        <span class="slbl">テーマ</span>
+        <select id="s-theme">
+          <option value="dark" >&#12480;&#12540;&#12463;</option>
+          <option value="light">&#12521;&#12452;&#12488;</option>
+        </select>
+      </div>
+      <div class="srow">
+        <span class="slbl">初期表示位置</span>
+        <select id="s-position">
+          <option value="topLeft">左上</option>
+          <option value="topRight">右上</option>
+          <option value="bottomLeft">左下</option>
+          <option value="bottomRight">右下</option>
+          <option value="center">中央</option>
+        </select>
+      </div>
+      <div class="srow">
+        <span class="slbl">文字サイズ</span>
+        <select id="s-fontsize">
+          <option value="small">小</option>
+          <option value="medium">中</option>
+          <option value="large">大</option>
+        </select>
+      </div>
+      <div class="srow">
+        <span class="slbl">既定のビュー</span>
+        <select id="s-view">
+          <option value="grid">&#12464;&#12522;&#12483;&#12489;</option>
+          <option value="list">&#12522;&#12473;&#12488;</option>
+        </select>
+      </div>
+      <div class="srow">
+        <span class="slbl">グリッド：各セル幅 (px)</span>
+        <select id="s-cellw">
+          <option value="48">48</option>
+          <option value="56">56</option>
+          <option value="64">64</option>
+          <option value="72">72</option>
+          <option value="80">80</option>
+          <option value="88">88</option>
+          <option value="96">96</option>
+          <option value="112">112</option>
+        </select>
+      </div>
+      <div class="srow">
+        <span class="slbl">グリッド：列数</span>
+        <select id="s-cols"></select>
+      </div>
+      <div class="srow">
+        <span class="slbl">グリッド：行数</span>
+        <select id="s-rows"></select>
+      </div>
+      <div class="srow">
+        <span class="slbl">リスト：行高 (px)</span>
+        <select id="s-listheight"></select>
+      </div>
+      <div class="srow">
+        <button class="sbtn pri" id="s-save">&#20445;&#23384;</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- アプリ追加/編集ダイアログ -->
+<div id="dlg-ov">
+  <div id="dlg-box">
+    <div class="dlg-title" id="dlg-title">&#12450;&#12503;&#12522;&#36861;&#21152;</div>
+    <div class="dlg-row">
+      <span class="dlg-lbl">&#34920;&#31034;&#21517;</span>
+      <input class="dlg-inp" id="d-name"  type="text">
+    </div>
+    <div class="dlg-row">
+      <span class="dlg-lbl">&#12497;&#12473; / URL</span>
+      <input class="dlg-inp" id="d-path"  type="text">
+    </div>
+    <div class="dlg-row">
+      <span class="dlg-lbl">&#12464;&#12523;&#12540;&#12503;</span>
+      <input class="dlg-inp" id="d-group" type="text">
+    </div>
+    <div class="dlg-row">
+      <span class="dlg-lbl">&#12450;&#12452;&#12467;&#12531;&#30011;&#20687;</span>
+      <input class="dlg-inp" id="d-icon" type="text" placeholder="&#30465;&#30053;&#21487; (&#30011;&#20687;&#12501;&#12449;&#12452;&#12523;&#12497;&#12473;)" style="margin-right:4px">
+      <button class="sbtn" id="d-icon-browse" style="-ms-flex-negative:0;flex-shrink:0">&#21442;&#29031;</button>
+      <button class="sbtn" id="d-icon-win"    style="-ms-flex-negative:0;flex-shrink:0;margin-left:4px">Iconify</button>
+    </div>
+    <input type="file" id="icon-file-picker" accept=".ico,.png,.bmp,.jpg,.jpeg" style="display:none">
+    <div class="dlg-btns">
+      <button class="sbtn pri" id="d-ok"    >OK</button>
+      <button class="sbtn"     id="d-cancel">&#12461;&#12515;&#12531;&#12475;&#12523;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Windows アイコンピッカー -->
+<div id="iconpicker-ov">
+  <div id="iconpicker-box">
+    <div class="iph">
+      <span>&#12450;&#12452;&#12467;&#12531;&#26908;&#32034; (Iconify)</span>
+      <button class="sbtn" id="ipc-close">&#x2715;</button>
+    </div>
+    <div class="ipc-search">
+      <input id="ipc-q" type="text" placeholder="&#20363;: home, folder, chrome, github, star">
+      <button class="sbtn pri" id="ipc-search-btn">&#26908;&#32034;</button>
+    </div>
+    <div id="ipc-status">&#12461;&#12540;&#12527;&#12540;&#12489;&#12434;&#20837;&#21147;&#12375;&#12390;&#26908;&#32034;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;</div>
+    <div id="ipc-grid"></div>
+  </div>
+</div>
+
+<!-- 右クリックメニュー -->
+<div id="context-menu" style="position: fixed; display: none; z-index: 1000; background: #FFF; border: 1px solid #CCC; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
+  <div id="menu-edit" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #EEE;">編集</div>
+  <div id="menu-delete" style="padding: 8px 12px; cursor: pointer;">削除</div>
+</div>
+
+<script language="JScript">
+// ===========================================================
+// ファイル I/O（ADODB.Stream で UTF-8 対応）
+// ===========================================================
+var fso = new ActiveXObject("Scripting.FileSystemObject");
+var wsh = new ActiveXObject("WScript.Shell");
+
+function getDir() {
+    var p = location.pathname.replace(/\//g, "\\");
+    if (p.charAt(0) === "\\") { p = p.substring(1); }
+    return fso.GetParentFolderName(p);
+}
+var DIR     = getDir();
+var CFGPATH = DIR + "\\config.json";
+
+function readUtf8(path) {
+    var st = new ActiveXObject("ADODB.Stream");
+    st.Type    = 2;
+    st.Charset = "UTF-8";
+    st.Open();
+    st.LoadFromFile(path);
+    var s = st.ReadText();
+    st.Close();
+    if (s && s.charCodeAt(0) === 0xFEFF) { s = s.substring(1); }
+    return s;
+}
+
+function writeUtf8(path, text) {
+    var st = new ActiveXObject("ADODB.Stream");
+    st.Type    = 2;
+    st.Charset = "UTF-8";
+    st.Open();
+    st.WriteText(text);
+    st.SaveToFile(path, 2);
+    st.Close();
+}
+
+// ===========================================================
+// 設定読み込み
+// ===========================================================
+var cfg = (function() {
+    var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
+                                      gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30 } };
+    try {
+        if (fso.FileExists(CFGPATH)) {
+            var c = JSON.parse(readUtf8(CFGPATH));
+            if (!c.apps) { c.apps = []; }
+            if (!c.settings) { c.settings = {}; }
+            var s = c.settings;
+            if (s.theme !== "dark" && s.theme !== "light") { s.theme = "dark"; }
+            if (s.defaultView !== "grid" && s.defaultView !== "list") { s.defaultView = "grid"; }
+            if (!s.gridCellWidth || s.gridCellWidth < 32)  { s.gridCellWidth = 72; }
+            if (!s.gridCols      || s.gridCols < 2)        { s.gridCols = 5; }
+            if (!s.gridRows      || s.gridRows < 2)        { s.gridRows = 6; }
+            if (!s.windowPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "center"].indexOf(s.windowPosition) < 0) { s.windowPosition = "center"; }
+            if (!s.fontSize || ["small", "medium", "large"].indexOf(s.fontSize) < 0) { s.fontSize = "small"; }
+            if (!s.listRowHeight || s.listRowHeight < 20) { s.listRowHeight = 30; }
+            return c;
+        }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(def));
+}());
+
+function saveCfg() {
+    try { writeUtf8(CFGPATH, JSON.stringify(cfg, null, 2)); } catch (e) {}
+}
+
+// ===========================================================
+// 状態変数
+// ===========================================================
+var viewMode  = cfg.settings.defaultView;
+var curTab    = "\u3059\u3079\u3066";  // "すべて"
+var selIdx    = -1;
+var dlgIdx    = -1;
+var dragSrc   = -1;
+var contextTargetIdx = -1;
+var lblH  = 0; // グリッドビューでのアイコン下のラベルの高さ
+
+// ===========================================================
+// 初期化
+// ===========================================================
+window.onload = function () {
+    applyTheme(cfg.settings.theme);
+    applyFontSize(cfg.settings.fontSize);
+
+    // 列数・行数のドロップダウンを動的生成
+    (function () {
+        var cs = ge("s-cols"), rs = ge("s-rows");
+        for (var n = 2; n <= 15; n++) {
+            var o1 = document.createElement("option"); o1.value = String(n); o1.text = String(n); cs.appendChild(o1);
+            if (n <= 12) {
+                var o2 = document.createElement("option"); o2.value = String(n); o2.text = String(n); rs.appendChild(o2);
+            }
+        }
+        var lh = ge("s-listheight");
+        for (var n = 20; n <= 50; n += 5) {
+            var o = document.createElement("option"); o.value = String(n); o.text = String(n); lh.appendChild(o);
+        }
+    }());
+
+    resizeToGrid();
+
+    // 検索
+    ge("search-box").onkeyup = function () { render(); };
+
+    // ヘッダーボタン
+    ge("btn-grid").onclick = function () { setView("grid"); };
+    ge("btn-list").onclick = function () { setView("list"); };
+    ge("btn-gear").onclick = function () { openSettings(); };
+
+    // 設定ボタン
+    ge("btn-close-s").onclick = function () { closeSettings(); };
+    ge("st-apps").onclick     = function () { switchTab("apps"); };
+    ge("st-cfg").onclick      = function () { switchTab("cfg"); };
+    ge("s-add").onclick       = function () { dlgOpen(-1); };
+    ge("s-edit").onclick      = function () { dlgOpenSel(); };
+    ge("s-del").onclick       = function () { appDel(); };
+    ge("s-up").onclick        = function () { appMove(-1); };
+    ge("s-down").onclick      = function () { appMove(1); };
+    ge("s-save").onclick      = function () { cfgSave(); };
+
+    // ダイアログボタン
+    ge("d-ok").onclick     = function () { dlgSave(); };
+    ge("d-cancel").onclick = function () { dlgClose(); };
+
+    // アイコン参照ボタン
+    ge("d-icon-browse").onclick = function () { ge("icon-file-picker").click(); };
+    ge("icon-file-picker").onchange = function () {
+        if (this.value) { ge("d-icon").value = this.value; }
+    };
+
+    // アイコンピッカー
+    ge("d-icon-win").onclick      = function () { openIconPicker(); };
+    ge("ipc-close").onclick       = function () { ge("iconpicker-ov").className = ""; };
+    ge("ipc-search-btn").onclick  = function () { searchIcons(); };
+    ge("ipc-q").onkeydown         = function (e) { if ((e || window.event).keyCode === 13) { searchIcons(); } };
+
+    renderTabs();
+    render();
+    updViewBtns();
+    positionToWindow();
+
+    // 右クリックメニュー
+    ge("menu-edit").onclick = function () {
+        ge("context-menu").style.display = "none";
+        if (contextTargetIdx >= 0) {
+            dlgOpen(contextTargetIdx);
+        }
+    };
+    ge("menu-delete").onclick = function () {
+        ge("context-menu").style.display = "none";
+        if (contextTargetIdx >= 0) {
+            if (confirm('"' + cfg.apps[contextTargetIdx].name + '" を削除しますか？')) {
+                cfg.apps.splice(contextTargetIdx, 1);
+                saveCfg();
+                renderTabs();
+                render();
+            }
+        }
+    };
+    document.onclick = function () {
+        ge("context-menu").style.display = "none";
+    };
+
+    // ドロップでアプリ追加
+    ge("content").ondragover = function (e) {
+        e.preventDefault();
+    };
+    ge("content").ondrop = function (e) {
+        e.preventDefault();
+        var added = false;
+        var files = e.dataTransfer.files;
+        if (files.length > 0) {
+            for (var i = 0; i < files.length; i++) {
+                var file = files[i];
+                var name = file.name.replace(/\.[^/.]+$/, "");
+                var path = file.path;
+                cfg.apps.push({ name: name, path: path, iconPath: "", group: "" });
+                added = true;
+            }
+        }
+        // クリップボード/URLドロップ対応
+        if (!added) {
+            var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("Text");
+            if (url) {
+                url = url.trim();
+                var m = url.match(/^(https?:\/\/[^\s]+)/);
+                if (m) {
+                    var href = m[1];
+                    var name = href.replace(/^https?:\/\//, "").split("/")[0];
+                    cfg.apps.push({ name: name, path: href, iconPath: faviconUrl(href) || "", group: "" });
+                    added = true;
+                }
+            }
+        }
+        if (added) {
+            saveCfg();
+            renderTabs();
+            render();
+        }
+    };
+};
+
+window.onbeforeunload = function () {
+    try { saveCfg(); } catch (e) {}
+};
+
+// ge() 省略形
+function ge(id) { return document.getElementById(id); }
+
+// ===========================================================
+// テーマ
+// ===========================================================
+function applyTheme(t) {
+    document.body.className = (t === "light") ? "light" : "dark";
+}
+
+function applyFontSize(fs) {
+    var size;
+    if (fs === "medium") size = "16px";
+    else if (fs === "large") size = "19px";
+    else size = "13px"; // small
+    document.body.style.fontSize = size;
+}
+
+// ===========================================================
+// タブ描画
+// ===========================================================
+function renderTabs() {
+    var panel = ge("tab-panel");
+    panel.innerHTML = "";
+    var groups = ["\u3059\u3079\u3066"], seen = {};
+    for (var i = 0; i < cfg.apps.length; i++) {
+        var g = cfg.apps[i].group;
+        if (g && g !== "" && !seen[g]) { groups.push(g); seen[g] = 1; }
+    }
+    if (!inArray(groups, curTab)) { curTab = "\u3059\u3079\u3066"; }
+
+    for (var j = 0; j < groups.length; j++) {
+        (function (gn) {
+            var b = document.createElement("button");
+            b.className   = "tbtn" + (gn === curTab ? " active" : "");
+            b.textContent = gn;
+            b.onclick = function () { curTab = gn; renderTabs(); render(); };
+            panel.appendChild(b);
+        }(groups[j]));
+    }
+}
+
+function inArray(arr, val) {
+    for (var k = 0; k < arr.length; k++) { if (arr[k] === val) { return true; } }
+    return false;
+}
+
+// ===========================================================
+// フィルター済みアプリ取得
+// ===========================================================
+function getFiltered() {
+    var q = (ge("search-box").value || "").toLowerCase();
+    var res = [];
+    for (var i = 0; i < cfg.apps.length; i++) {
+        var a = cfg.apps[i];
+        if (curTab !== "\u3059\u3079\u3066" && a.group !== curTab) { continue; }
+        if (q !== "") {
+            var nm = (a.name  || "").toLowerCase();
+            var gr = (a.group || "").toLowerCase();
+            if (nm.indexOf(q) < 0 && gr.indexOf(q) < 0) { continue; }
+        }
+        res.push({ a: a, i: i });
+    }
+    return res;
+}
+
+// ===========================================================
+// メイン描画
+// ===========================================================
+function render() {
+    var ct   = ge("content");
+    var list = getFiltered();
+    if (viewMode === "grid") { renderGrid(ct, list); }
+    else                     { renderList(ct, list); }
+}
+
+// ===========================================================
+// アイコン
+// ===========================================================
+var COLORS = ["#0078D7","#E74856","#27B04E","#E8A000","#8764B8","#038387","#C43E1C","#107C10","#CA5010"];
+
+function iconColor(name) {
+    var h = 0;
+    for (var i = 0; i < (name || "").length; i++) {
+        h = ((h * 31) + (name || "").charCodeAt(i)) & 0xFFFF;
+    }
+    return COLORS[h % COLORS.length];
+}
+
+function initial(name) { return ((name || "?").charAt(0)).toUpperCase(); }
+
+function faviconUrl(path) {
+    var m = (path || "").match(/^https?:\/\/([^\/]+)/);
+    if (!m) return null;
+    // Google Favicon Service（より確実にファビコンを取得）
+    return "https://www.google.com/s2/favicons?domain=" + m[1] + "&sz=48";
+}
+
+// ===========================================================
+// アイコンピッカー（Iconify API）
+// ===========================================================
+function openIconPicker() {
+    ge("ipc-q").value = "";
+    ge("ipc-status").innerHTML = "\u30ad\u30fc\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u691c\u7d22\u3057\u3066\u304f\u3060\u3055\u3044";
+    ge("ipc-grid").innerHTML   = "";
+    ge("iconpicker-ov").className = "open";
+    ge("ipc-q").focus();
+}
+
+function searchIcons() {
+    var q = (ge("ipc-q").value || "").replace(/^\s+|\s+$/g, "");
+    if (!q) { return; }
+    ge("ipc-status").innerHTML = "\u691c\u7d22\u4e2d\u2026";
+    ge("ipc-grid").innerHTML   = "";
+
+    var url = "https://api.iconify.design/search?query=" + encodeURIComponent(q) + "&limit=120";
+    var xhr;
+    try { xhr = new XMLHttpRequest(); }        catch(e1) {
+        try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch(e2) { xhr = null; }
+    }
+    if (!xhr) { ge("ipc-status").innerHTML = "XHR\u304c\u5229\u7528\u3067\u304d\u307e\u305b\u3093"; return; }
+
+    xhr.onreadystatechange = function () {
+        if (xhr.readyState !== 4) { return; }
+        if (xhr.status !== 200) {
+            ge("ipc-status").innerHTML = "\u691c\u7d22\u5931\u6557 (HTTP " + xhr.status + ")";
+            return;
+        }
+        try {
+            var data = JSON.parse(xhr.responseText);
+            renderIconResults(data.icons || []);
+        } catch (e) {
+            ge("ipc-status").innerHTML = "\u30ec\u30b9\u30dd\u30f3\u30b9\u30a8\u30e9\u30fc: " + e.message;
+        }
+    };
+    try { xhr.open("GET", url, true); xhr.send(); }
+    catch (e) { ge("ipc-status").innerHTML = "\u901a\u4fe1\u30a8\u30e9\u30fc: " + e.message; }
+}
+
+function renderIconResults(icons) {
+    var grid = ge("ipc-grid");
+    grid.innerHTML = "";
+    if (!icons.length) {
+        ge("ipc-status").innerHTML = "\u7d50\u679c\u304c\u3042\u308a\u307e\u305b\u3093";
+        return;
+    }
+    ge("ipc-status").innerHTML = icons.length + " \u4ef6";
+    var cur = ge("d-icon").value;
+    for (var i = 0; i < icons.length; i++) {
+        (function (name) {
+            var parts  = name.split(":");
+            var prefix = parts[0], icon = parts[1];
+            var imgUrl = "https://api.iconify.design/" + prefix + "/" + icon + ".svg?width=32&height=32";
+            var saveUrl = "https://api.iconify.design/" + prefix + "/" + icon + ".svg?width=48&height=48";
+
+            var cell = document.createElement("div");
+            cell.className = "ipcell" + (saveUrl === cur ? " selected" : "");
+            cell.title     = name;
+            var img = document.createElement("img");
+            img.src     = imgUrl;
+            img.width   = 32;
+            img.height  = 32;
+            img.onerror = function () { if (cell.parentNode) { cell.parentNode.removeChild(cell); } };
+            cell.appendChild(img);
+            cell.onclick = function () {
+                var prev = ge("ipc-grid").querySelector(".ipcell.selected");
+                if (prev) { prev.className = "ipcell"; }
+                cell.className = "ipcell selected";
+                ge("d-icon").value = saveUrl;
+                ge("iconpicker-ov").className = "";
+            };
+            grid.appendChild(cell);
+        }(icons[i]));
+    }
+}
+
+function makeIconEl(app, size, radius) {
+    var col   = iconColor(app.name);
+    var init  = initial(app.name);
+    var fsize = Math.floor(size * 0.42) + "px";
+
+    var div = document.createElement("div");
+    div.style.width          = size + "px";
+    div.style.height         = size + "px";
+    div.style.borderRadius   = radius || "5px";
+    div.style.display        = "-ms-flexbox";
+    div.style.msFlexAlign    = "center";
+    div.style.msFlexPack     = "center";
+    div.style.alignItems     = "center";
+    div.style.justifyContent = "center";
+    div.style.overflow       = "hidden";
+    div.style.flexShrink     = "0";
+
+    var src = app.iconPath || faviconUrl(app.path);
+    if (src) {
+        // 画像が使える場合: 背景なし、ロード失敗時だけ頭文字+背景色にフォールバック
+        div.style.background = "transparent";
+        var img = document.createElement("img");
+        img.style.width     = "100%";
+        img.style.height    = "100%";
+        img.style.objectFit = "contain";
+        img.onerror = (function (d) {
+            return function () {
+                if (img.parentNode) { img.parentNode.removeChild(img); }
+                d.style.background = col;
+                d.style.color      = "#FFF";
+                d.style.fontWeight = "bold";
+                d.style.fontSize   = fsize;
+                d.textContent      = init;
+            };
+        }(div));
+        img.src = src;
+        div.appendChild(img);
+    } else {
+        // アイコンなし: 頭文字 + 背景色
+        div.style.background = col;
+        div.style.color      = "#FFF";
+        div.style.fontWeight = "bold";
+        div.style.fontSize   = fsize;
+        div.textContent      = init;
+    }
+    return div;
+}
+
+// ===========================================================
+// グリッドビュー
+// ===========================================================
+function renderGrid(ct, list) {
+    ct.innerHTML = "";
+    var cw    = cfg.settings.gridCellWidth || 72;
+    var iw    = Math.max(Math.floor(cw * 0.64), 20); // アイコンサイズ: セル幅の64%
+    var cellH = cw + lblH;                              // セル高さ = 幅 + ラベル領域
+    var lblW  = cw - 2;
+    for (var i = 0; i < list.length; i++) {
+        (function (item) {
+            var app = item.a, origI = item.i;
+
+            var cell = document.createElement("div");
+            cell.className    = "gcell";
+            cell.draggable    = true;
+            cell.style.width  = cw    + "px";
+            cell.style.height = cellH + "px";
+
+            var icon = makeIconEl(app, iw, "5px");
+            icon.className    = "gicon";
+            icon.style.width  = iw + "px";
+            icon.style.height = iw + "px";
+
+            var lbl = document.createElement("div");
+            lbl.className      = "glabel";
+            lbl.textContent    = app.name;
+            lbl.title          = app.name;
+            lbl.style.width    = lblW + "px";
+            lbl.style.fontSize = Math.max(Math.floor(cw * 0.15), 9) + "px";
+
+            cell.appendChild(icon);
+            cell.appendChild(lbl);
+
+            cell.onclick = (function (a) { return function () { launch(a); }; }(app));
+
+            // 右クリックでコンテキストメニュー
+            cell.oncontextmenu = (function (idx) {
+                return function (e) {
+                    var ev = e || window.event;
+                    ev.preventDefault();
+                    contextTargetIdx = idx;
+                    var menu = ge("context-menu");
+                    menu.style.left = ev.clientX + "px";
+                    menu.style.top = ev.clientY + "px";
+                    menu.style.display = "block";
+                    return false;
+                };
+            }(origI));
+
+            // ドラッグ開始
+            cell.ondragstart = (function (idx, c) {
+                return function (e) {
+                    dragSrc = idx;
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("Text", String(idx));
+                    c.className = "gcell drag-src";
+                };
+            }(origI, cell));
+
+            cell.ondragend = (function (c) {
+                return function () { dragSrc = -1; c.className = "gcell"; };
+            }(cell));
+
+            cell.ondragover = (function (idx, c) {
+                return function (e) {
+                    e.preventDefault();
+                    if (dragSrc !== idx) { c.className = "gcell drag-over"; }
+                };
+            }(origI, cell));
+
+            cell.ondragleave = (function (c) {
+                return function () { c.className = "gcell"; };
+            }(cell));
+
+            // ドロップ
+            cell.ondrop = (function (tgtIdx, tgtApp, c) {
+                return function (e) {
+                    e.preventDefault();
+                    c.className = "gcell";
+                    if (dragSrc < 0 || dragSrc === tgtIdx) { dragSrc = -1; return; }
+                    var srcName = cfg.apps[dragSrc] ? cfg.apps[dragSrc].name : "?";
+                    if (!confirm('"' + srcName + '" \u3092 "' + tgtApp.name + '" \u306e\u524d\u306b\u79fb\u52d5\u3057\u307e\u3059\u304b\uff1f')) {
+                        dragSrc = -1; return;
+                    }
+                    var moved = cfg.apps.splice(dragSrc, 1)[0];
+                    var ni = -1;
+                    for (var k = 0; k < cfg.apps.length; k++) {
+                        if (cfg.apps[k] === tgtApp) { ni = k; break; }
+                    }
+                    if (ni < 0) { ni = cfg.apps.length; }
+                    cfg.apps.splice(ni, 0, moved);
+                    dragSrc = -1;
+                    saveCfg();
+                    renderTabs();
+                    render();
+                };
+            }(origI, app, cell));
+
+            ct.appendChild(cell);
+        }(list[i]));
+    }
+}
+
+// ===========================================================
+// リストビュー
+// ===========================================================
+function renderList(ct, list) {
+    ct.innerHTML = "";
+    var tbl = document.createElement("table");
+    tbl.id = "list-tbl";
+
+    // 列幅固定（table-layout:fixed と組み合わせて overflow ellipsis を有効化）
+    var cg = document.createElement("colgroup");
+    var c2 = document.createElement("col"); c2.style.width = "30%";
+    var c3 = document.createElement("col"); c3.style.width = "10%";
+    cg.appendChild(document.createElement("col")); // 列1: 残り全幅
+    cg.appendChild(c2);
+    cg.appendChild(c3);
+    tbl.appendChild(cg);
+
+    for (var i = 0; i < list.length; i++) {
+        (function (item) {
+            var app = item.a;
+            var tr  = document.createElement("tr");
+            tr.style.height = cfg.settings.listRowHeight + "px";
+            tr.onclick = (function (a) { return function () { launch(a); }; }(app));
+            tr.oncontextmenu = (function (idx) {
+                return function (e) {
+                    var ev = e || window.event;
+                    ev.preventDefault();
+                    contextTargetIdx = idx;
+                    var menu = ge("context-menu");
+                    menu.style.left = ev.clientX + "px";
+                    menu.style.top = ev.clientY + "px";
+                    menu.style.display = "block";
+                    return false;
+                };
+            }(item.i));
+
+            // 列1: アイコン + 名前
+            var td1 = document.createElement("td");
+            td1.style.whiteSpace = "nowrap";
+            var ic = makeIconEl(app, 22, "3px");
+            ic.className       = "licon";
+            ic.style.display   = "-ms-inline-flexbox";
+            td1.appendChild(ic);
+            td1.appendChild(document.createTextNode(app.name));
+
+            // 列2: グループ
+            var td2 = document.createElement("td");
+            td2.textContent = app.group || "";
+            td2.style.width = "100px";
+
+            // 列3: パス
+            var td3 = document.createElement("td");
+            td3.textContent    = app.path || "";
+            td3.style.color    = "#888";
+            td3.style.fontSize = "11px";
+
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            tr.appendChild(td3);
+            tbl.appendChild(tr);
+        }(list[i]));
+    }
+    ct.appendChild(tbl);
+}
+
+// ===========================================================
+// アプリ起動
+// ===========================================================
+function launch(app) {
+    if (!app.path) { return; }
+    try {
+        var cmd = (app.path.match(/^https?:\/\//)) ? app.path : '"' + app.path + '"';
+        wsh.Run(cmd, 1, false);
+        window.close();
+    } catch (e) {
+        alert("\u8d77\u52d5\u5931\u6557: " + app.name + "\n" + e.message);
+    }
+}
+
+// ===========================================================
+// ビュー切り替え
+// ===========================================================
+function setView(v) {
+    viewMode = v;
+    updViewBtns();
+    render();
+}
+
+function updViewBtns() {
+    ge("btn-grid").className = "hbtn" + (viewMode === "grid" ? " active" : "");
+    ge("btn-list").className = "hbtn" + (viewMode === "list" ? " active" : "");
+}
+
+// ===========================================================
+// 設定パネル
+// ===========================================================
+function openSettings() {
+    ge("s-theme").value     = cfg.settings.theme;
+    ge("s-view").value      = cfg.settings.defaultView;
+    ge("s-cellw").value     = String(cfg.settings.gridCellWidth || 72);
+    ge("s-cols").value      = String(cfg.settings.gridCols || 5);
+    ge("s-rows").value      = String(cfg.settings.gridRows || 6);
+    ge("s-position").value  = cfg.settings.windowPosition || "center";
+    ge("s-fontsize").value  = cfg.settings.fontSize || "small";
+    ge("s-listheight").value = String(cfg.settings.listRowHeight || 30);
+    renderAppList();
+    selIdx = -1;
+    ge("settings").className = "open";
+}
+
+function closeSettings() {
+    ge("settings").className = "";
+    renderTabs();
+    render();
+}
+
+function switchTab(t) {
+    ge("tab-apps").className = "stab" + (t === "apps" ? " active" : "");
+    ge("tab-cfg").className  = "stab" + (t === "cfg"  ? " active" : "");
+    ge("st-apps").className  = "stabtn" + (t === "apps" ? " active" : "");
+    ge("st-cfg").className   = "stabtn" + (t === "cfg"  ? " active" : "");
+}
+
+// ===========================================================
+// 設定: アプリリスト
+// ===========================================================
+function renderAppList() {
+    var tbody = ge("app-tbody");
+    tbody.innerHTML = "";
+    for (var i = 0; i < cfg.apps.length; i++) {
+        (function (app, idx) {
+            var tr = document.createElement("tr");
+            if (idx === selIdx) { tr.className = "sel"; }
+
+            var tdIcon = document.createElement("td");
+            tdIcon.className = "icon-col";
+            if (app.iconPath || app.path) {
+                var iconUrl = app.iconPath || faviconUrl(app.path);
+                if (iconUrl) {
+                    var img = document.createElement("img");
+                    img.src = iconUrl;
+                    img.style.width = "20px";
+                    img.style.height = "20px";
+                    img.style.objectFit = "contain";
+                    tdIcon.appendChild(img);
+                }
+            }
+            var td1 = document.createElement("td"); td1.textContent = app.name  || "";
+            var td2 = document.createElement("td"); td2.textContent = app.group || "";
+            var td3 = document.createElement("td");
+            td3.textContent    = app.path || "";
+            td3.style.fontSize = "11px";
+            td3.style.maxWidth = "280px";
+            td3.style.overflow = "hidden";
+            td3.style.whiteSpace = "nowrap";
+
+            tr.appendChild(tdIcon);
+            tr.appendChild(td1);
+            tr.appendChild(td2);
+            tr.appendChild(td3);
+
+            tr.onclick = (function (i) {
+                return function () { selIdx = i; renderAppList(); };
+            }(idx));
+            tr.ondblclick = (function (i) {
+                return function () { selIdx = i; dlgOpen(i); };
+            }(idx));
+
+            tbody.appendChild(tr);
+        }(cfg.apps[i], i));
+    }
+}
+
+function appDel() {
+    if (selIdx < 0 || selIdx >= cfg.apps.length) {
+        alert("\u524a\u9664\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
+        return;
+    }
+    if (!confirm('"' + cfg.apps[selIdx].name + '" \u3092\u524a\u9664\u3057\u307e\u3059\u304b\uff1f')) { return; }
+    cfg.apps.splice(selIdx, 1);
+    selIdx = Math.min(selIdx, cfg.apps.length - 1);
+    saveCfg();
+    renderAppList();
+}
+
+function appMove(dir) {
+    var ni = selIdx + dir;
+    if (selIdx < 0 || ni < 0 || ni >= cfg.apps.length) { return; }
+    var tmp = cfg.apps[selIdx];
+    cfg.apps[selIdx] = cfg.apps[ni];
+    cfg.apps[ni]     = tmp;
+    selIdx = ni;
+    saveCfg();
+    renderAppList();
+}
+
+function dlgOpenSel() {
+    if (selIdx < 0 || selIdx >= cfg.apps.length) {
+        alert("\u7de8\u96c6\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
+        return;
+    }
+    dlgOpen(selIdx);
+}
+
+// ===========================================================
+// アプリ追加/編集ダイアログ
+// ===========================================================
+function dlgOpen(idx) {
+    dlgIdx = idx;
+    ge("dlg-title").textContent = (idx < 0)
+        ? "\u30a2\u30d7\u30ea\u8ffd\u52a0"    // アプリ追加
+        : "\u30a2\u30d7\u30ea\u7de8\u96c6";   // アプリ編集
+    var app = (idx >= 0) ? cfg.apps[idx] : null;
+    ge("d-name").value  = app ? (app.name      || "") : "";
+    ge("d-path").value  = app ? (app.path      || "") : "";
+    ge("d-group").value = app ? (app.group     || "") : "";
+    ge("d-icon").value  = app ? (app.iconPath  || "") : "";
+    ge("dlg-ov").className = "open";
+    ge("d-name").focus();
+}
+
+function dlgSave() {
+    var name  = trim(ge("d-name").value);
+    var path  = trim(ge("d-path").value);
+    var group = trim(ge("d-group").value);
+    var icon  = trim(ge("d-icon").value);
+
+    if (!name || !path) {
+        alert("\u8868\u793a\u540d\u3068\u30d1\u30b9\u306f\u5fc5\u9808\u3067\u3059\u3002");
+        return;
+    }
+    if (!icon && path.match(/^https?:\/\//)) {
+        icon = faviconUrl(path);
+    }
+    var obj = { name: name, path: path, iconPath: icon, group: group };
+    if (dlgIdx < 0) {
+        cfg.apps.push(obj);
+        selIdx = cfg.apps.length - 1;
+    } else {
+        cfg.apps[dlgIdx] = obj;
+        selIdx = dlgIdx;
+    }
+    saveCfg();
+    dlgClose();
+    renderAppList();
+}
+
+function dlgClose() {
+    ge("dlg-ov").className = "";
+}
+
+function trim(s) {
+    return (s || "").replace(/^\s+|\s+$/g, "");
+}
+
+// ===========================================================
+// ウィンドウサイズをグリッド設定に合わせてリサイズ
+// ===========================================================
+function resizeToGrid() {
+    var cw    = cfg.settings.gridCellWidth || 72;
+    var cols  = cfg.settings.gridCols || 5;
+    var rows  = cfg.settings.gridRows || 6;
+    var cellH = cw + lblH;   // アイコン高さ + ラベル領域
+    // ウィンドウ装飾サイズを実測（タイトルバー・ボーダー込み）
+    var decoW = Math.max(window.outerWidth  - document.documentElement.clientWidth,  16);
+    var decoH = Math.max(window.outerHeight - document.documentElement.clientHeight, 50);
+    var targetW = cols * (cw + 4) + 16 + decoW;   // セル×列 + 余白 + 装飾
+    var targetH = rows * (cellH + 4) + 16 + 44 + 34 + decoH; // セル×行 + ヘッダー + タブ + 装飾
+    try { window.resizeTo(Math.max(targetW, 280), Math.max(targetH, 200)); } catch (e) {}
+}
+
+function positionToWindow() {
+    var pos = cfg.settings.windowPosition || "center";
+    var screenW = screen.availWidth;
+    var screenH = screen.availHeight;
+    var winW = window.outerWidth;
+    var winH = window.outerHeight;
+    var x, y;
+    if (pos === "topLeft") {
+        x = 0; y = 0;
+    } else if (pos === "topRight") {
+        x = screenW - winW; y = 0;
+    } else if (pos === "bottomLeft") {
+        x = 0; y = screenH - winH;
+    } else if (pos === "bottomRight") {
+        x = screenW - winW; y = screenH - winH;
+    } else { // center
+        x = (screenW - winW) / 2; y = (screenH - winH) / 2;
+    }
+    try { window.moveTo(x, y); } catch (e) {}
+}
+
+// ===========================================================
+// 設定保存
+// ===========================================================
+function cfgSave() {
+    cfg.settings.theme         = ge("s-theme").value;
+    cfg.settings.defaultView   = ge("s-view").value;
+    cfg.settings.gridCellWidth = parseInt(ge("s-cellw").value, 10) || 72;
+    cfg.settings.gridCols      = parseInt(ge("s-cols").value,  10) || 5;
+    cfg.settings.gridRows      = parseInt(ge("s-rows").value,  10) || 6;
+    cfg.settings.windowPosition = ge("s-position").value;
+    cfg.settings.fontSize      = ge("s-fontsize").value;
+    cfg.settings.listRowHeight = parseInt(ge("s-listheight").value, 10) || 30;
+    saveCfg();
+    applyTheme(cfg.settings.theme);
+    applyFontSize(cfg.settings.fontSize);
+    viewMode = cfg.settings.defaultView;
+    updViewBtns();
+    resizeToGrid();
+    positionToWindow();
+    render();
+    alert("\u8a2d\u5b9a\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f\u3002");
+}
+</script>
+</body>
+</html>

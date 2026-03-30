@@ -1,0 +1,98 @@
+﻿{
+  "apps": [
+    {
+      "name": "電卓",
+      "path": "C:\\Windows\\System32\\calc.exe",
+      "iconPath": "https://api.iconify.design/flat-color-icons/calculator.svg?width=48&height=48",
+      "group": "機能"
+    },
+    {
+      "name": "エクスプローラー",
+      "path": "C:\\Windows\\explorer.exe",
+      "iconPath": "https://api.iconify.design/flat-color-icons/folder.svg?width=48&height=48",
+      "group": "機能"
+    },
+    {
+      "name": "メモ帳",
+      "path": "C:\\Windows\\System32\\notepad.exe",
+      "iconPath": "https://api.iconify.design/noto/memo.svg?width=48&height=48",
+      "group": "機能"
+    },
+    {
+      "name": "コントロールパネル",
+      "path": "C:\\Windows\\System32\\control.exe",
+      "iconPath": "https://api.iconify.design/twemoji/desktop-computer.svg?width=48&height=48",
+      "group": "機能"
+    },
+    {
+      "name": "GitHub",
+      "path": "https://github.com/",
+      "iconPath": "",
+      "group": "リンク"
+    },
+    {
+      "name": "YouTube",
+      "path": "https://www.youtube.com/",
+      "iconPath": "",
+      "group": "リンク"
+    },
+    {
+      "name": "HTA",
+      "path": "https://stsa.hatenablog.com/entry/2025/09/14/234323",
+      "iconPath": "https://api.iconify.design/solar/programming-line-duotone.svg?width=48&height=48",
+      "group": "リンク"
+    },
+    {
+      "name": "靴",
+      "path": "https://kusumin.com/post-12133/",
+      "iconPath": "",
+      "group": "リンク"
+    },
+    {
+      "name": "フォルダ",
+      "path": "C:\\Users\\ptu\\Documents\\github\\PSLauncher\\HTA",
+      "iconPath": "https://api.iconify.design/flat-color-icons/folder.svg?width=48&height=48",
+      "group": "フォルダ"
+    },
+    {
+      "name": "HTALauncher.hta",
+      "iconPath": "",
+      "group": ""
+    },
+    {
+      "name": "mogumogu",
+      "path": "https://mogumogu-design.com/table-th-td-width/",
+      "iconPath": "https://www.google.com/s2/favicons?domain=mogumogu-design.com&sz=48",
+      "group": ""
+    }
+  ],
+  "settings": {
+    "hotCorner": {
+      "enabled": true,
+      "corner": "topLeft",
+      "pixels": 5,
+      "cooldownMs": 1500,
+      "corners": [
+        "topRight",
+        "bottomRight"
+      ]
+    },
+    "hotkey": {
+      "enabled": true,
+      "modifiers": 6,
+      "key": 32,
+      "display": "Ctrl+Shift+Space"
+    },
+    "defaultView": "grid",
+    "startup": true,
+    "windowWidth": 1136,
+    "windowHeight": 710,
+    "theme": "light",
+    "gridCellWidth": 72,
+    "gridCols": 5,
+    "gridRows": 5,
+    "windowPosition": "center",
+    "fontSize": "large",
+    "listRowHeight": 45
+  }
+}
