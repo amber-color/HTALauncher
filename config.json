@@ -77,6 +77,12 @@
       "path": "OpenInternetExplorer.exe",
       "iconPath": "",
       "group": ""
+    },
+    {
+      "name": "mail.google.com",
+      "path": "https://mail.google.com/mail/u/0/?tab=rm&ogbl#inbox/FMfcgzQgLFffnGCNkqPLxkbGtgrVdMQX",
+      "iconPath": "https://www.google.com/s2/favicons?domain=mail.google.com&sz=48",
+      "group": ""
     }
   ],
   "settings": {

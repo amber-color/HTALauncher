@@ -583,52 +583,40 @@ function handleDropApp(e) {
     if (!e || !e.dataTransfer) { return false; }
     e.preventDefault();
     var added = false;
-    var files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-        for (var i = 0; i < files.length; i++) {
-            var file = files[i];
-            var path = file.path || file.name || "";
-            // HTAの制限で file.path が undefined の場合、フルパスを取得できない
-            // file.name をパスとして記録（相対パス扱い）
-            var name = (file.name || "").toString();
-            if (!name && path) {
-                // パスから名前を抽出
-                var parts = path.replace(/[\\\/]+$/, "").split(/[\\\/]/);
-                name = parts[parts.length - 1] || "";
+
+    // HTA環境では getData("Text") にExplorerからドロップした絶対パスが格納される
+    var textData = (e.dataTransfer.getData("Text") || "").trim();
+    var localPaths = [];
+    if (textData) {
+        var lines = textData.split(/\r?\n/);
+        for (var j = 0; j < lines.length; j++) {
+            var line = lines[j].trim();
+            // Windowsの絶対パス（ドライブレター形式 or UNCパス）を抽出
+            if (/^[a-zA-Z]:\\/.test(line) || /^\\\\/.test(line)) {
+                localPaths.push(line);
             }
-            if (typeof name === "string" && name !== "") {
-                // 拡張子を除去（ファイルの場合のみ）
-                if (file.type && file.type !== "") {
-                    // ファイルの場合
-                    name = name.replace(/\.[^/.]+$/, "");
-                }
-                // フォルダの場合は拡張子除去しない
-            } else {
-                name = "（未設定）";
-            }
-            cfg.apps.push({ name: name, path: path, iconPath: "", group: "" });
-            added = true;
         }
-    } else {
-        // HTAではフォルダドロップがサポートされていないため、URLのみ対応
-        var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || "";
-        if (url) {
-            var name = url.replace(/^https?:\/\//, "").split("/")[0] || "Web Link";
-            cfg.apps.push({ name: name, path: url, iconPath: "", group: "" });
+    }
+
+    if (localPaths.length > 0) {
+        var dtFiles = e.dataTransfer.files;
+        for (var i = 0; i < localPaths.length; i++) {
+            var absPath = localPaths[i];
+            var parts = absPath.replace(/[\\]+$/, "").split("\\");
+            var baseName = parts[parts.length - 1] || "";
+            // filesコレクションのtypeが取れればファイル、取れなければ拡張子の有無で判定
+            var isFile = (dtFiles && i < dtFiles.length && dtFiles[i].type !== "")
+                         || (!(dtFiles && dtFiles.length > 0) && baseName.indexOf(".") !== -1);
+            var name = isFile ? baseName.replace(/\.[^/.]+$/, "") : baseName;
+            if (!name) name = "（未設定）";
+            cfg.apps.push({ name: name, path: absPath, iconPath: "", group: "" });
             added = true;
         }
     }
-    if (added) {
-        cfgSave();
-        render();
-    }
-    return false;
-}
+
     if (!added) {
-        var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("Text");
-        if (url != null) {
-            url = String(url).trim();
-        }
+        // URLドロップ処理
+        var url = e.dataTransfer.getData("URL") || textData;
         if (url) {
             var m = url.match(/^(https?:\/\/[^\s]+)/);
             if (m) {
@@ -639,6 +627,7 @@ function handleDropApp(e) {
             }
         }
     }
+
     if (added) {
         saveCfg();
         renderTabs();
