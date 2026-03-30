@@ -126,7 +126,7 @@ body.light .stabtn { color: #666; }
 .stab { display: none; }
 .stab.active { display: block; }
 
-/* ===== 設定: アプリリスト ===== */
+/* ===== 設定: アイテムリスト ===== */
 .abtnrow { margin-bottom: 8px; }
 .abtnrow .sbtn { margin-right: 5px; }
 
@@ -192,7 +192,7 @@ body.light #ipc-status { color: #666; }
 .ipcell.selected { background: #CCE4FF; border-color: #0078D7; }
 .ipcell img { width: 32px; height: 32px; vertical-align: middle; }
 
-/* ===== アプリ追加/編集ダイアログ ===== */
+/* ===== アイテム追加/編集ダイアログ ===== */
 #dlg-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20;
           display: none; -ms-flex-align: center; align-items: center;
           -ms-flex-pack: center; justify-content: center; background: rgba(0,0,0,.55); }
@@ -228,9 +228,9 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
 <div id="launcher">
   <div id="header">
     <input id="search-box" type="text" placeholder="検索...">
-    <button class="hbtn" id="btn-grid" title="グリッド">&#9638;</button>
-    <button class="hbtn" id="btn-list" title="リスト">&#9776;</button>
-    <button class="hbtn" id="btn-gear" title="設定">&#9881;</button>
+    <button class="hbtn" id="btn-grid" title="グリッド">▦</button>
+    <button class="hbtn" id="btn-list" title="リスト">☰</button>
+    <button class="hbtn" id="btn-gear" title="設定">⚙</button>
   </div>
   <div id="tab-panel"></div>
   <div id="content"></div>
@@ -248,7 +248,7 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
   </div>
   <div class="scontent">
 
-    <!-- アプリ管理タブ -->
+    <!-- アイテム管理タブ -->
     <div id="tab-apps" class="stab active">
       <div class="abtnrow">
         <button class="sbtn pri" id="s-add" >追加</button>
@@ -260,9 +260,9 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
       <table id="app-tbl">
         <thead><tr>
           <th class="icon-col"></th>
-          <th width="42%">&#34920;&#31034;&#21517;</th>
-          <th>&#12464;&#12523;&#12540;&#12503;</th>
-          <th>&#12497;&#12473;</th>
+          <th width="42%">表示名</th>
+          <th>グループ</th>
+          <th>パス</th>
         </tr></thead>
         <tbody id="app-tbody"></tbody>
       </table>
@@ -273,8 +273,8 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
       <div class="srow">
         <span class="slbl">テーマ</span>
         <select id="s-theme">
-          <option value="dark" >&#12480;&#12540;&#12463;</option>
-          <option value="light">&#12521;&#12452;&#12488;</option>
+          <option value="dark" >ダーク</option>
+          <option value="light">ライト</option>
         </select>
       </div>
       <div class="srow">
@@ -298,8 +298,8 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
       <div class="srow">
         <span class="slbl">既定のビュー</span>
         <select id="s-view">
-          <option value="grid">&#12464;&#12522;&#12483;&#12489;</option>
-          <option value="list">&#12522;&#12473;&#12488;</option>
+          <option value="grid">グリッド</option>
+          <option value="list">リスト</option>
         </select>
       </div>
       <div class="srow">
@@ -328,39 +328,42 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
         <select id="s-listheight"></select>
       </div>
       <div class="srow">
-        <button class="sbtn pri" id="s-save">&#20445;&#23384;</button>
+        <button class="sbtn pri" id="s-save">保存</button>
       </div>
     </div>
 
   </div>
 </div>
 
-<!-- アプリ追加/編集ダイアログ -->
+<!-- アイテム追加/編集ダイアログ -->
 <div id="dlg-ov">
   <div id="dlg-box">
-    <div class="dlg-title" id="dlg-title">&#12450;&#12503;&#12522;&#36861;&#21152;</div>
+    <div class="dlg-title" id="dlg-title">アイテム追加</div>
     <div class="dlg-row">
-      <span class="dlg-lbl">&#34920;&#31034;&#21517;</span>
+      <span class="dlg-lbl">表示名</span>
       <input class="dlg-inp" id="d-name"  type="text">
     </div>
     <div class="dlg-row">
-      <span class="dlg-lbl">&#12497;&#12473; / URL</span>
-      <input class="dlg-inp" id="d-path"  type="text">
+      <span class="dlg-lbl">パス / URL</span>
+      <input class="dlg-inp" id="d-path" type="text" style="margin-right:4px">
+      <button class="sbtn" id="d-path-file"   style="-ms-flex-negative:0;flex-shrink:0">ファイル</button>
+      <button class="sbtn" id="d-path-folder" style="-ms-flex-negative:0;flex-shrink:0;margin-left:4px">フォルダ</button>
     </div>
+    <input type="file" id="path-file-picker" style="display:none">
     <div class="dlg-row">
-      <span class="dlg-lbl">&#12464;&#12523;&#12540;&#12503;</span>
+      <span class="dlg-lbl">グループ</span>
       <input class="dlg-inp" id="d-group" type="text">
     </div>
     <div class="dlg-row">
-      <span class="dlg-lbl">&#12450;&#12452;&#12467;&#12531;&#30011;&#20687;</span>
-      <input class="dlg-inp" id="d-icon" type="text" placeholder="&#30465;&#30053;&#21487; (&#30011;&#20687;&#12501;&#12449;&#12452;&#12523;&#12497;&#12473;)" style="margin-right:4px">
-      <button class="sbtn" id="d-icon-browse" style="-ms-flex-negative:0;flex-shrink:0">&#21442;&#29031;</button>
+      <span class="dlg-lbl">アイコン画像</span>
+      <input class="dlg-inp" id="d-icon" type="text" placeholder="省略可 (画像ファイルパス)" style="margin-right:4px">
+      <button class="sbtn" id="d-icon-browse" style="-ms-flex-negative:0;flex-shrink:0">参照</button>
       <button class="sbtn" id="d-icon-win"    style="-ms-flex-negative:0;flex-shrink:0;margin-left:4px">Iconify</button>
     </div>
     <input type="file" id="icon-file-picker" accept=".ico,.png,.bmp,.jpg,.jpeg" style="display:none">
     <div class="dlg-btns">
       <button class="sbtn pri" id="d-ok"    >OK</button>
-      <button class="sbtn"     id="d-cancel">&#12461;&#12515;&#12531;&#12475;&#12523;</button>
+      <button class="sbtn"     id="d-cancel">キャンセル</button>
     </div>
   </div>
 </div>
@@ -369,14 +372,14 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
 <div id="iconpicker-ov">
   <div id="iconpicker-box">
     <div class="iph">
-      <span>&#12450;&#12452;&#12467;&#12531;&#26908;&#32034; (Iconify)</span>
+      <span>アイコン検索 (Iconify)</span>
       <button class="sbtn" id="ipc-close">&#x2715;</button>
     </div>
     <div class="ipc-search">
-      <input id="ipc-q" type="text" placeholder="&#20363;: home, folder, chrome, github, star">
-      <button class="sbtn pri" id="ipc-search-btn">&#26908;&#32034;</button>
+      <input id="ipc-q" type="text" placeholder="例: home, folder, chrome, github, star">
+      <button class="sbtn pri" id="ipc-search-btn">検索</button>
     </div>
-    <div id="ipc-status">&#12461;&#12540;&#12527;&#12540;&#12489;&#12434;&#20837;&#21147;&#12375;&#12390;&#26908;&#32034;&#12375;&#12390;&#12367;&#12384;&#12373;&#12356;</div>
+    <div id="ipc-status">キーワードを入力して検索してください</div>
     <div id="ipc-grid"></div>
   </div>
 </div>
@@ -397,6 +400,30 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
     onmouseover="this.style.background='#0078D7';this.style.color='#FFF'"
     onmouseout="this.style.background='';this.style.color=''">追加</div>
 </div>
+
+<script language="VBScript">
+' ドロップ時にExplorerの選択アイテムのパスを取得する
+' JScript側から GetDroppedPaths() として呼び出す
+Function GetDroppedPaths()
+    Dim shell, win, sel, i, result
+    result = ""
+    On Error Resume Next
+    Set shell = CreateObject("Shell.Application")
+    For Each win In shell.Windows()
+        Set sel = win.Document.SelectedItems()
+        If Err.Number = 0 And Not IsNull(sel) And sel.Count > 0 Then
+            For i = 0 To sel.Count - 1
+                If result <> "" Then result = result & Chr(10)
+                result = result & sel.Item(i).Path
+            Next
+            If result <> "" Then Exit For
+        End If
+        Err.Clear
+    Next
+    On Error GoTo 0
+    GetDroppedPaths = result
+End Function
+</script>
 
 <script language="JScript">
 // ===========================================================
@@ -474,6 +501,7 @@ var selIdx    = -1;
 var dlgIdx    = -1;
 var dragSrc   = -1;
 var contextTargetIdx = -1;
+var pendingDropPaths = []; // ondragenter で事前取得したパス一覧
 var lblH  = 0; // グリッドビューでのアイコン下のラベルの高さ
 
 // ===========================================================
@@ -522,6 +550,21 @@ window.onload = function () {
     // ダイアログボタン
     ge("d-ok").onclick     = function () { dlgSave(); };
     ge("d-cancel").onclick = function () { dlgClose(); };
+
+    // パス参照：ファイル（HTA完全信頼モードではinput.valueにフルパスが入る）
+    ge("d-path-file").onclick = function () { ge("path-file-picker").click(); };
+    ge("path-file-picker").onchange = function () {
+        if (this.value) {
+            ge("d-path").value = this.value;
+            if (!ge("d-name").value) {
+                var parts = this.value.replace(/[\\\/]+$/, "").split(/[\\\/]/);
+                var base = parts[parts.length - 1] || "";
+                ge("d-name").value = base.replace(/\.[^/.]+$/, "");
+            }
+        }
+    };
+    // パス参照：フォルダ（Shell.Application.BrowseForFolder）
+    ge("d-path-folder").onclick = function () { browseForFolder(); };
 
     // アイコン参照ボタン
     ge("d-icon-browse").onclick = function () { ge("icon-file-picker").click(); };
@@ -580,7 +623,22 @@ window.onload = function () {
         return false;
     };
 
-    // ドロップでアプリ追加
+    // ドロップでアイテム追加
+    // ondragenter: ドラッグがウィンドウに入った瞬間にExplorerの選択パスを取得
+    // （ondrop 時点では選択状態がクリアされている場合があるため事前取得）
+    document.body.ondragenter = function () {
+        pendingDropPaths = [];
+        try {
+            var vbPaths = GetDroppedPaths();
+            if (vbPaths) {
+                var lines = vbPaths.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    var p = lines[i].replace(/\r/g, "").trim();
+                    if (p) pendingDropPaths.push(p);
+                }
+            }
+        } catch (ex) {}
+    };
     ge("content").ondragover = function (e) {
         e.preventDefault();
     };
@@ -607,45 +665,92 @@ window.onbeforeunload = function () {
 // ge() 省略形
 function ge(id) { return document.getElementById(id); }
 
+// フォルダ選択ダイアログ（Shell.Application.BrowseForFolder）
+function browseForFolder() {
+    try {
+        var shell = new ActiveXObject("Shell.Application");
+        // 0x40 = BIF_NEWDIALOGSTYLE
+        var item = shell.BrowseForFolder(0, "\u30d5\u30a9\u30eb\u30c0\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044", 0x40);
+        if (item) {
+            var path = item.Self.Path;
+            ge("d-path").value = path;
+            if (!ge("d-name").value) {
+                var parts = path.replace(/[\\]+$/, "").split("\\");
+                ge("d-name").value = parts[parts.length - 1] || "";
+            }
+        }
+    } catch (ex) {}
+}
+
 function handleDropApp(e) {
-    e.stopPropagation();
     if (!e || !e.dataTransfer) { return false; }
+    e.stopPropagation();
     e.preventDefault();
     var added = false;
+    var dt = e.dataTransfer;
 
-    // HTA環境では getData("Text") にExplorerからドロップした絶対パスが格納される
-    var textData = (e.dataTransfer.getData("Text") || "").trim();
+    var textData = "", urlData = "";
+    try { textData = dt.getData("Text") || ""; } catch (ex) {}
+    try { urlData  = dt.getData("URL")  || ""; } catch (ex) {}
+
     var localPaths = [];
+
+    // 方法1: getText に Windowsパスが含まれる場合
     if (textData) {
         var lines = textData.split(/\r?\n/);
         for (var j = 0; j < lines.length; j++) {
             var line = lines[j].trim();
-            // Windowsの絶対パス（ドライブレター形式 or UNCパス）を抽出
             if (/^[a-zA-Z]:\\/.test(line) || /^\\\\/.test(line)) {
                 localPaths.push(line);
             }
         }
     }
 
+    // 方法2: URL が file:/// 形式の場合はパスに変換
+    if (localPaths.length === 0 && urlData && urlData.indexOf("file:///") === 0) {
+        try {
+            var absPath = decodeURIComponent(urlData.substr(8)).replace(/\//g, "\\");
+            if (absPath) localPaths.push(absPath);
+        } catch (ex) {}
+    }
+
+    // 方法3: ondragenter で事前取得したパスを使用（ファイル・フォルダ両対応）
+    if (localPaths.length === 0 && pendingDropPaths.length > 0) {
+        for (var k = 0; k < pendingDropPaths.length; k++) {
+            localPaths.push(pendingDropPaths[k]);
+        }
+    }
+
     if (localPaths.length > 0) {
-        var dtFiles = e.dataTransfer.files;
         for (var i = 0; i < localPaths.length; i++) {
             var absPath = localPaths[i];
             var parts = absPath.replace(/[\\]+$/, "").split("\\");
             var baseName = parts[parts.length - 1] || "";
-            // filesコレクションのtypeが取れればファイル、取れなければ拡張子の有無で判定
-            var isFile = (dtFiles && i < dtFiles.length && dtFiles[i].type !== "")
-                         || (!(dtFiles && dtFiles.length > 0) && baseName.indexOf(".") !== -1);
+            var isFile = baseName.indexOf(".") !== -1;
             var name = isFile ? baseName.replace(/\.[^/.]+$/, "") : baseName;
             if (!name) name = "（未設定）";
             cfg.apps.push({ name: name, path: absPath, iconPath: "", group: "" });
             added = true;
         }
+    } else {
+        // パスが取得できなかった場合はダイアログで補完
+        var firstName = "";
+        try {
+            if (dt.files && dt.files.length > 0) {
+                firstName = (dt.files[0].name || "").replace(/\.[^/.]+$/, "");
+            }
+        } catch (ex) {}
+        dlgOpen(-1);
+        if (firstName) {
+            ge("d-name").value = firstName;
+        }
+        ge("d-path").focus();
+        return false;
     }
 
     if (!added) {
         // URLドロップ処理
-        var url = e.dataTransfer.getData("URL") || textData;
+        var url = urlData || textData;
         if (url) {
             var m = url.match(/^(https?:\/\/[^\s]+)/);
             if (m) {
@@ -710,7 +815,7 @@ function inArray(arr, val) {
 }
 
 // ===========================================================
-// フィルター済みアプリ取得
+// フィルター済みアイテム取得
 // ===========================================================
 function getFiltered() {
     var q = (ge("search-box").value || "").toLowerCase();
@@ -1068,7 +1173,7 @@ function renderList(ct, list) {
 }
 
 // ===========================================================
-// アプリ起動
+// アイテム起動
 // ===========================================================
 function launch(app) {
     if (!app.path) { return; }
@@ -1126,7 +1231,7 @@ function switchTab(t) {
 }
 
 // ===========================================================
-// 設定: アプリリスト
+// 設定: アイテムリスト
 // ===========================================================
 function renderAppList() {
     var tbody = ge("app-tbody");
@@ -1207,13 +1312,13 @@ function dlgOpenSel() {
 }
 
 // ===========================================================
-// アプリ追加/編集ダイアログ
+// アイテム追加/編集ダイアログ
 // ===========================================================
 function dlgOpen(idx) {
     dlgIdx = idx;
     ge("dlg-title").textContent = (idx < 0)
-        ? "\u30a2\u30d7\u30ea\u8ffd\u52a0"    // アプリ追加
-        : "\u30a2\u30d7\u30ea\u7de8\u96c6";   // アプリ編集
+        ? "\u30a2\u30d7\u30ea\u8ffd\u52a0"    // アイテム追加
+        : "\u30a2\u30d7\u30ea\u7de8\u96c6";   // アイテム編集
     var app = (idx >= 0) ? cfg.apps[idx] : null;
     ge("d-name").value  = app ? (app.name      || "") : "";
     ge("d-path").value  = app ? (app.path      || "") : "";
