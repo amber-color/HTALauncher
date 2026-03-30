@@ -556,37 +556,18 @@ window.onload = function () {
         e.preventDefault();
     };
     ge("content").ondrop = function (e) {
+        if (!handleDropApp(e)) {
+            // 既存アイコン上の内部ドラッグ並べ替えにも対応させるため、必要ならここで何もしない
+        }
+        e.stopPropagation(); // 重複登録防止
+    };
+
+    // 全体のドロップ対応（セルへのドロップも拾う）
+    document.body.ondragover = function (e) {
         e.preventDefault();
-        var added = false;
-        var files = e.dataTransfer.files;
-        if (files.length > 0) {
-            for (var i = 0; i < files.length; i++) {
-                var file = files[i];
-                var name = file.name.replace(/\.[^/.]+$/, "");
-                var path = file.path;
-                cfg.apps.push({ name: name, path: path, iconPath: "", group: "" });
-                added = true;
-            }
-        }
-        // クリップボード/URLドロップ対応
-        if (!added) {
-            var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("Text");
-            if (url) {
-                url = url.trim();
-                var m = url.match(/^(https?:\/\/[^\s]+)/);
-                if (m) {
-                    var href = m[1];
-                    var name = href.replace(/^https?:\/\//, "").split("/")[0];
-                    cfg.apps.push({ name: name, path: href, iconPath: faviconUrl(href) || "", group: "" });
-                    added = true;
-                }
-            }
-        }
-        if (added) {
-            saveCfg();
-            renderTabs();
-            render();
-        }
+    };
+    document.body.ondrop = function (e) {
+        handleDropApp(e);
     };
 };
 
@@ -596,6 +577,75 @@ window.onbeforeunload = function () {
 
 // ge() 省略形
 function ge(id) { return document.getElementById(id); }
+
+function handleDropApp(e) {
+    e.stopPropagation();
+    if (!e || !e.dataTransfer) { return false; }
+    e.preventDefault();
+    var added = false;
+    var files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+        for (var i = 0; i < files.length; i++) {
+            var file = files[i];
+            var path = file.path || file.name || "";
+            // HTAの制限で file.path が undefined の場合、フルパスを取得できない
+            // file.name をパスとして記録（相対パス扱い）
+            var name = (file.name || "").toString();
+            if (!name && path) {
+                // パスから名前を抽出
+                var parts = path.replace(/[\\\/]+$/, "").split(/[\\\/]/);
+                name = parts[parts.length - 1] || "";
+            }
+            if (typeof name === "string" && name !== "") {
+                // 拡張子を除去（ファイルの場合のみ）
+                if (file.type && file.type !== "") {
+                    // ファイルの場合
+                    name = name.replace(/\.[^/.]+$/, "");
+                }
+                // フォルダの場合は拡張子除去しない
+            } else {
+                name = "（未設定）";
+            }
+            cfg.apps.push({ name: name, path: path, iconPath: "", group: "" });
+            added = true;
+        }
+    } else {
+        // HTAではフォルダドロップがサポートされていないため、URLのみ対応
+        var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || "";
+        if (url) {
+            var name = url.replace(/^https?:\/\//, "").split("/")[0] || "Web Link";
+            cfg.apps.push({ name: name, path: url, iconPath: "", group: "" });
+            added = true;
+        }
+    }
+    if (added) {
+        cfgSave();
+        render();
+    }
+    return false;
+}
+    if (!added) {
+        var url = e.dataTransfer.getData("URL") || e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("Text");
+        if (url != null) {
+            url = String(url).trim();
+        }
+        if (url) {
+            var m = url.match(/^(https?:\/\/[^\s]+)/);
+            if (m) {
+                var href = m[1];
+                var name = href.replace(/^https?:\/\//, "").split("/")[0];
+                cfg.apps.push({ name: name, path: href, iconPath: faviconUrl(href) || "", group: "" });
+                added = true;
+            }
+        }
+    }
+    if (added) {
+        saveCfg();
+        renderTabs();
+        render();
+    }
+    return added;
+}
 
 // ===========================================================
 // テーマ
@@ -898,6 +948,14 @@ function renderGrid(ct, list) {
                 return function (e) {
                     e.preventDefault();
                     c.className = "gcell";
+
+                    // 外部ファイル/URLドロップを優先
+                    if (handleDropApp(e)) {
+                        dragSrc = -1;
+                        e.stopPropagation(); // 重複防止
+                        return;
+                    }
+
                     if (dragSrc < 0 || dragSrc === tgtIdx) { dragSrc = -1; return; }
                     var srcName = cfg.apps[dragSrc] ? cfg.apps[dragSrc].name : "?";
                     if (!confirm('"' + srcName + '" \u3092 "' + tgtApp.name + '" \u306e\u524d\u306b\u79fb\u52d5\u3057\u307e\u3059\u304b\uff1f')) {
