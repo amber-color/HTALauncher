@@ -694,6 +694,27 @@ window.onload = function () {
         if (tgt && tgt.tagName === "INPUT"    && tgt.id !== "search-box") { return; }
         if (tgt && tgt.tagName === "TEXTAREA")                             { return; }
 
+        // Ctrl+Tab / Ctrl+Shift+Tab でタブ切り替え
+        if (key === 9 && ev.ctrlKey) {
+            var groups = ["\u3059\u3079\u3066"], seen = {};
+            for (var ti = 0; ti < cfg.apps.length; ti++) {
+                var tg = cfg.apps[ti].group;
+                if (tg && tg !== "" && !seen[tg]) { groups.push(tg); seen[tg] = 1; }
+            }
+            var idx = 0;
+            for (var k = 0; k < groups.length; k++) { if (groups[k] === curTab) { idx = k; break; } }
+            if (ev.shiftKey) {
+                idx = (idx - 1 + groups.length) % groups.length;
+            } else {
+                idx = (idx + 1) % groups.length;
+            }
+            curTab = groups[idx];
+            renderTabs();
+            render();
+            ev.preventDefault();
+            return false;
+        }
+
         var list = lastFilteredList;
         if (!list.length) { return; }
 
@@ -806,6 +827,7 @@ function handleDropApp(e) {
     }
 
     if (localPaths.length > 0) {
+        var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
         for (var i = 0; i < localPaths.length; i++) {
             var localPath = localPaths[i];
             var parts = localPath.replace(/[\\]+$/, "").split("\\");
@@ -813,7 +835,7 @@ function handleDropApp(e) {
             var isFile = baseName.indexOf(".") !== -1;
             var appName = isFile ? baseName.replace(/\.[^/.]+$/, "") : baseName;
             if (!appName) appName = "（未設定）";
-            cfg.apps.push({ name: appName, path: localPath, iconPath: "", group: "" });
+            cfg.apps.push({ name: appName, path: localPath, iconPath: "", group: dropGroup });
             added = true;
         }
     } else {
@@ -840,7 +862,8 @@ function handleDropApp(e) {
             if (m) {
                 var href = m[1];
                 var urlName = href.replace(/^https?:\/\//, "").split("/")[0];
-                cfg.apps.push({ name: urlName, path: href, iconPath: faviconUrl(href) || "", group: "" });
+                var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
+                cfg.apps.push({ name: urlName, path: href, iconPath: faviconUrl(href) || "", group: dropGroup });
                 added = true;
             }
         }
