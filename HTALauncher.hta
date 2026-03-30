@@ -71,6 +71,10 @@ body.dark  .gcell:hover { background: #373737; }
 body.light .gcell:hover { background: #D0D0D0; }
 .gcell.drag-over { background: #005A9E; }
 .gcell.drag-src  { opacity: .45; }
+body.dark  .gcell.kbd-sel { box-shadow: inset 0 0 0 2px #3399FF; }
+body.light .gcell.kbd-sel { box-shadow: inset 0 0 0 2px #0056B3; }
+body.dark  #list-tbl tr.kbd-sel td { background: #1E3A5F !important; }
+body.light #list-tbl tr.kbd-sel td { background: #C5DCF5 !important; }
 
 .gicon { margin: 4px auto 0;
          display: -ms-flexbox; display: flex;
@@ -278,6 +282,13 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
         </select>
       </div>
       <div class="srow">
+        <span class="slbl">起動時のタブ</span>
+        <select id="s-start-tab">
+          <option value="all" >すべて</option>
+          <option value="last">最後に開いていたタブ</option>
+        </select>
+      </div>
+      <div class="srow">
         <span class="slbl">初期表示位置</span>
         <select id="s-position">
           <option value="topLeft">左上</option>
@@ -467,7 +478,8 @@ function writeUtf8(path, text) {
 // ===========================================================
 var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
-                                      gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30 } };
+                                      gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
+                                      startTab: "all", lastTab: "すべて" } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -482,6 +494,8 @@ var cfg = (function() {
             if (!s.windowPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "center"].indexOf(s.windowPosition) < 0) { s.windowPosition = "center"; }
             if (!s.fontSize || ["small", "medium", "large"].indexOf(s.fontSize) < 0) { s.fontSize = "small"; }
             if (!s.listRowHeight || s.listRowHeight < 20) { s.listRowHeight = 30; }
+            if (s.startTab !== "all" && s.startTab !== "last") { s.startTab = "all"; }
+            if (!s.lastTab) { s.lastTab = "すべて"; }
             return c;
         }
     } catch (e) {}
@@ -489,6 +503,7 @@ var cfg = (function() {
 }());
 
 function saveCfg() {
+    cfg.settings.lastTab = curTab;
     try { writeUtf8(CFGPATH, JSON.stringify(cfg, null, 2)); } catch (e) {}
 }
 
@@ -496,12 +511,18 @@ function saveCfg() {
 // 状態変数
 // ===========================================================
 var viewMode  = cfg.settings.defaultView;
-var curTab    = "\u3059\u3079\u3066";  // "すべて"
+var curTab    = (cfg.settings.startTab === "last" && cfg.settings.lastTab)
+                ? cfg.settings.lastTab
+                : "すべて";
 var selIdx    = -1;
 var dlgIdx    = -1;
 var dragSrc   = -1;
 var contextTargetIdx = -1;
 var pendingDropPaths = []; // ondragenter で事前取得したパス一覧
+var kbdIdx          = 0;   // キーボード選択中のフィルタ済みリスト上のインデックス
+var kbdOrigI        = -1;  // 選択中アイテムの cfg.apps インデックス（絞り込み後も同アプリを追跡）
+var kbdMoved        = false; // true のときのみ scrollIntoView を実行
+var lastFilteredList = [];  // getFiltered() のキャッシュ（onkeydown で再計算しないため）
 var lblH  = 0; // グリッドビューでのアイコン下のラベルの高さ
 
 // ===========================================================
@@ -528,8 +549,13 @@ window.onload = function () {
 
     resizeToGrid();
 
-    // 検索
-    ge("search-box").onkeyup = function () { render(); };
+    // 検索（矢印キー・Enterはdocument.onkeydownで処理するためスキップ）
+    ge("search-box").onkeyup = function (e) {
+        var key = (e || window.event).keyCode;
+        if (key >= 37 && key <= 40) { return; } // 矢印キー
+        if (key === 13) { return; }              // Enter
+        render();
+    };
 
     // ヘッダーボタン
     ge("btn-grid").onclick = function () { setView("grid"); };
@@ -656,6 +682,58 @@ window.onload = function () {
     document.body.ondrop = function (e) {
         handleDropApp(e);
     };
+
+    // キーボードナビゲーション
+    document.onkeydown = function (e) {
+        var ev  = e || window.event;
+        var key = ev.keyCode;
+
+        if (isAnyModalOpen()) { return; }
+
+        var tgt = ev.target || ev.srcElement;
+        if (tgt && tgt.tagName === "INPUT"    && tgt.id !== "search-box") { return; }
+        if (tgt && tgt.tagName === "TEXTAREA")                             { return; }
+
+        var list = lastFilteredList;
+        if (!list.length) { return; }
+
+        if (key >= 37 && key <= 40) {
+            var next = kbdIdx;
+            if (viewMode === "grid") {
+                var cw   = cfg.settings.gridCellWidth || 72;
+                var ctEl = ge("content");
+                var cols = Math.max(1, Math.floor((ctEl.clientWidth || ctEl.offsetWidth || 400) / (cw + 4)));
+                if      (key === 37) { next -= 1; }
+                else if (key === 39) { next += 1; }
+                else if (key === 38) { next -= cols; }
+                else if (key === 40) { next += cols; }
+            } else {
+                if      (key === 38) { next -= 1; }
+                else if (key === 40) { next += 1; }
+                else { return; }
+            }
+            next = Math.max(0, Math.min(next, list.length - 1));
+            if (next !== kbdIdx) {
+                kbdIdx   = next;
+                kbdOrigI = list[kbdIdx].i;
+                kbdMoved = true;
+                render();
+            }
+            ev.preventDefault();
+            return false;
+        }
+
+        if (key === 13) {
+            if (kbdIdx >= 0 && kbdIdx < list.length) {
+                launch(list[kbdIdx].a);
+            }
+            ev.preventDefault();
+            return false;
+        }
+    };
+
+    // 起動時に検索ボックスにフォーカス
+    ge("search-box").focus();
 };
 
 window.onbeforeunload = function () {
@@ -664,6 +742,12 @@ window.onbeforeunload = function () {
 
 // ge() 省略形
 function ge(id) { return document.getElementById(id); }
+
+function isAnyModalOpen() {
+    return ge("dlg-ov").className       === "open" ||
+           ge("iconpicker-ov").className === "open" ||
+           ge("settings").className      === "open";
+}
 
 // フォルダ選択ダイアログ（Shell.Application.BrowseForFolder）
 function browseForFolder() {
@@ -723,13 +807,13 @@ function handleDropApp(e) {
 
     if (localPaths.length > 0) {
         for (var i = 0; i < localPaths.length; i++) {
-            var absPath = localPaths[i];
-            var parts = absPath.replace(/[\\]+$/, "").split("\\");
+            var localPath = localPaths[i];
+            var parts = localPath.replace(/[\\]+$/, "").split("\\");
             var baseName = parts[parts.length - 1] || "";
             var isFile = baseName.indexOf(".") !== -1;
-            var name = isFile ? baseName.replace(/\.[^/.]+$/, "") : baseName;
-            if (!name) name = "（未設定）";
-            cfg.apps.push({ name: name, path: absPath, iconPath: "", group: "" });
+            var appName = isFile ? baseName.replace(/\.[^/.]+$/, "") : baseName;
+            if (!appName) appName = "（未設定）";
+            cfg.apps.push({ name: appName, path: localPath, iconPath: "", group: "" });
             added = true;
         }
     } else {
@@ -755,8 +839,8 @@ function handleDropApp(e) {
             var m = url.match(/^(https?:\/\/[^\s]+)/);
             if (m) {
                 var href = m[1];
-                var name = href.replace(/^https?:\/\//, "").split("/")[0];
-                cfg.apps.push({ name: name, path: href, iconPath: faviconUrl(href) || "", group: "" });
+                var urlName = href.replace(/^https?:\/\//, "").split("/")[0];
+                cfg.apps.push({ name: urlName, path: href, iconPath: faviconUrl(href) || "", group: "" });
                 added = true;
             }
         }
@@ -839,8 +923,25 @@ function getFiltered() {
 function render() {
     var ct   = ge("content");
     var list = getFiltered();
+    lastFilteredList = list;
+
+    // 絞り込み後も同じアプリを選択し続ける
+    if (list.length === 0) {
+        kbdIdx = 0; kbdOrigI = -1;
+    } else if (kbdOrigI >= 0) {
+        var found = false;
+        for (var fi = 0; fi < list.length; fi++) {
+            if (list[fi].i === kbdOrigI) { kbdIdx = fi; found = true; break; }
+        }
+        if (!found) { kbdIdx = 0; kbdOrigI = list[0].i; }
+    } else {
+        kbdIdx = Math.max(0, Math.min(kbdIdx, list.length - 1));
+        kbdOrigI = list[kbdIdx].i;
+    }
+
     if (viewMode === "grid") { renderGrid(ct, list); }
     else                     { renderList(ct, list); }
+    kbdMoved = false;
 }
 
 // ===========================================================
@@ -1000,12 +1101,17 @@ function renderGrid(ct, list) {
     var iw    = Math.max(Math.floor(cw * 0.64), 20); // アイコンサイズ: セル幅の64%
     var cellH = cw + lblH;                              // セル高さ = 幅 + ラベル領域
     var lblW  = cw - 2;
+
+    var ctW = ct.clientWidth || ct.offsetWidth || 400;
+
+    var kbdCell = null;
     for (var i = 0; i < list.length; i++) {
-        (function (item) {
+        (function (item, listIdx) {
             var app = item.a, origI = item.i;
 
             var cell = document.createElement("div");
-            cell.className    = "gcell";
+            cell.className    = "gcell" + (listIdx === kbdIdx ? " kbd-sel" : "");
+            if (listIdx === kbdIdx) { kbdCell = cell; }
             cell.draggable    = true;
             cell.style.width  = cw    + "px";
             cell.style.height = cellH + "px";
@@ -1101,8 +1207,9 @@ function renderGrid(ct, list) {
             }(origI, app, cell));
 
             ct.appendChild(cell);
-        }(list[i]));
+        }(list[i], i));
     }
+    if (kbdMoved && kbdCell) { kbdCell.scrollIntoView(false); }
 }
 
 // ===========================================================
@@ -1122,11 +1229,13 @@ function renderList(ct, list) {
     cg.appendChild(c3);
     tbl.appendChild(cg);
 
+    var kbdRow = null;
     for (var i = 0; i < list.length; i++) {
-        (function (item) {
+        (function (item, listIdx) {
             var app = item.a;
             var tr  = document.createElement("tr");
             tr.style.height = cfg.settings.listRowHeight + "px";
+            if (listIdx === kbdIdx) { tr.className = "kbd-sel"; kbdRow = tr; }
             tr.onclick = (function (a) { return function () { launch(a); }; }(app));
             tr.oncontextmenu = (function (idx) {
                 return function (e) {
@@ -1167,9 +1276,10 @@ function renderList(ct, list) {
             tr.appendChild(td2);
             tr.appendChild(td3);
             tbl.appendChild(tr);
-        }(list[i]));
+        }(list[i], i));
     }
     ct.appendChild(tbl);
+    if (kbdMoved && kbdRow) { kbdRow.scrollIntoView(false); }
 }
 
 // ===========================================================
@@ -1212,6 +1322,7 @@ function openSettings() {
     ge("s-position").value  = cfg.settings.windowPosition || "center";
     ge("s-fontsize").value  = cfg.settings.fontSize || "small";
     ge("s-listheight").value = String(cfg.settings.listRowHeight || 30);
+    ge("s-start-tab").value  = cfg.settings.startTab || "all";
     renderAppList();
     selIdx = -1;
     ge("settings").className = "open";
@@ -1411,6 +1522,7 @@ function cfgSave() {
     cfg.settings.windowPosition = ge("s-position").value;
     cfg.settings.fontSize      = ge("s-fontsize").value;
     cfg.settings.listRowHeight = parseInt(ge("s-listheight").value, 10) || 30;
+    cfg.settings.startTab      = ge("s-start-tab").value;
     saveCfg();
     applyTheme(cfg.settings.theme);
     applyFontSize(cfg.settings.fontSize);
