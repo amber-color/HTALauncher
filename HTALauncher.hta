@@ -381,10 +381,21 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
   </div>
 </div>
 
-<!-- 右クリックメニュー -->
-<div id="context-menu" style="position: fixed; display: none; z-index: 1000; background: #FFF; border: 1px solid #CCC; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);">
-  <div id="menu-edit" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #EEE;">編集</div>
-  <div id="menu-delete" style="padding: 8px 12px; cursor: pointer;">削除</div>
+<!-- アイテム右クリックメニュー -->
+<div id="context-menu" style="position: fixed; display: none; z-index: 1000; background: #FFF; border: 1px solid #CCC; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+  <div id="menu-edit" style="padding: 8px 16px; cursor: pointer; border-bottom: 1px solid #EEE;"
+    onmouseover="this.style.background='#0078D7';this.style.color='#FFF'"
+    onmouseout="this.style.background='';this.style.color=''">編集</div>
+  <div id="menu-delete" style="padding: 8px 16px; cursor: pointer;"
+    onmouseover="this.style.background='#C0392B';this.style.color='#FFF'"
+    onmouseout="this.style.background='';this.style.color=''">削除</div>
+</div>
+
+<!-- 余白右クリックメニュー -->
+<div id="bg-context-menu" style="position: fixed; display: none; z-index: 1000; background: #FFF; border: 1px solid #CCC; box-shadow: 2px 2px 5px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
+  <div id="menu-add" style="padding: 8px 16px; cursor: pointer;"
+    onmouseover="this.style.background='#0078D7';this.style.color='#FFF'"
+    onmouseout="this.style.background='';this.style.color=''">追加</div>
 </div>
 
 <script language="JScript">
@@ -547,8 +558,26 @@ window.onload = function () {
             }
         }
     };
+    ge("menu-add").onclick = function () {
+        ge("bg-context-menu").style.display = "none";
+        dlgOpen(-1);
+    };
     document.onclick = function () {
         ge("context-menu").style.display = "none";
+        ge("bg-context-menu").style.display = "none";
+    };
+    // コンテンツ余白の右クリックで「追加」メニューを表示
+    ge("content").oncontextmenu = function (e) {
+        var ev = e || window.event;
+        // アイテム上の右クリックは各セルのハンドラが処理するため伝播を止めてある
+        // ここに到達したのは余白クリック
+        ge("context-menu").style.display = "none";
+        var menu = ge("bg-context-menu");
+        menu.style.left = ev.clientX + "px";
+        menu.style.top  = ev.clientY + "px";
+        menu.style.display = "block";
+        ev.preventDefault();
+        return false;
     };
 
     // ドロップでアプリ追加
@@ -898,6 +927,8 @@ function renderGrid(ct, list) {
                 return function (e) {
                     var ev = e || window.event;
                     ev.preventDefault();
+                    if (ev.stopPropagation) ev.stopPropagation();
+                    ge("bg-context-menu").style.display = "none";
                     contextTargetIdx = idx;
                     var menu = ge("context-menu");
                     menu.style.left = ev.clientX + "px";
@@ -996,6 +1027,8 @@ function renderList(ct, list) {
                 return function (e) {
                     var ev = e || window.event;
                     ev.preventDefault();
+                    if (ev.stopPropagation) ev.stopPropagation();
+                    ge("bg-context-menu").style.display = "none";
                     contextTargetIdx = idx;
                     var menu = ge("context-menu");
                     menu.style.left = ev.clientX + "px";
