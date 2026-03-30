@@ -1,4 +1,4 @@
-{
+﻿{
   "apps": [
     {
       "name": "電卓",
@@ -50,13 +50,13 @@
     }
   ],
   "settings": {
-    "theme": "dark",
+    "theme": "light",
     "defaultView": "grid",
     "gridCellWidth": 72,
     "gridCols": 5,
     "gridRows": 6,
     "windowPosition": "center",
-    "fontSize": "small",
+    "fontSize": "large",
     "listRowHeight": 30,
     "startTab": "all",
     "lastTab": "すべて"
