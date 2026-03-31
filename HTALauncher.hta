@@ -1024,7 +1024,7 @@ function searchIcons() {
     ge("ipc-status").innerHTML = "\u691c\u7d22\u4e2d\u2026";
     ge("ipc-grid").innerHTML   = "";
 
-    var url = "https://api.iconify.design/search?query=" + encodeURIComponent(q) + "&limit=120";
+    var url = "https://api.iconify.design/search?query=" + encodeURIComponent(q) + "&limit=999";
     var xhr;
     try { xhr = new XMLHttpRequest(); }        catch(e1) {
         try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch(e2) { xhr = null; }
@@ -1048,6 +1048,29 @@ function searchIcons() {
     catch (e) { ge("ipc-status").innerHTML = "\u901a\u4fe1\u30a8\u30e9\u30fc: " + e.message; }
 }
 
+function diversifyIcons(icons) {
+    // アイコンセット（プレフィックス）ごとにグループ化してラウンドロビンで並び替え
+    var groups = {}, prefixOrder = [];
+    for (var i = 0; i < icons.length; i++) {
+        var prefix = icons[i].split(":")[0];
+        if (!groups[prefix]) { groups[prefix] = []; prefixOrder.push(prefix); }
+        groups[prefix].push(icons[i]);
+    }
+    var result = [], idx = 0, hasMore = true;
+    while (hasMore) {
+        hasMore = false;
+        for (var p = 0; p < prefixOrder.length; p++) {
+            var g = groups[prefixOrder[p]];
+            if (idx < g.length) {
+                result.push(g[idx]);
+                if (idx + 1 < g.length) { hasMore = true; }
+            }
+        }
+        idx++;
+    }
+    return result;
+}
+
 function renderIconResults(icons) {
     var grid = ge("ipc-grid");
     grid.innerHTML = "";
@@ -1055,6 +1078,7 @@ function renderIconResults(icons) {
         ge("ipc-status").innerHTML = "\u7d50\u679c\u304c\u3042\u308a\u307e\u305b\u3093";
         return;
     }
+    icons = diversifyIcons(icons);
     ge("ipc-status").innerHTML = icons.length + " \u4ef6";
     var cur = ge("d-icon").value;
     for (var i = 0; i < icons.length; i++) {
