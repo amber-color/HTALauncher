@@ -59,6 +59,7 @@
     "fontSize": "large",
     "listRowHeight": 30,
     "startTab": "all",
-    "lastTab": "すべて"
+    "lastTab": "すべて",
+    "launchAction": "minimize"
   }
 }

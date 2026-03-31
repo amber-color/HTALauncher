@@ -18,6 +18,7 @@
     VERSION="1.0"
     WINDOWSTATE="normal"
     ALWAYSONTOP="yes"
+    ICON="icon.ico"
 />
 <style>
 /* ===== リセット ===== */
@@ -339,6 +340,14 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
         <select id="s-listheight"></select>
       </div>
       <div class="srow">
+        <span class="slbl">アイテム選択後の動作</span>
+        <select id="s-launch-action">
+          <option value="minimize">最小化する</option>
+          <option value="close">アプリを終了する</option>
+          <option value="none">そのまま</option>
+        </select>
+      </div>
+      <div class="srow">
         <button class="sbtn pri" id="s-save">保存</button>
       </div>
     </div>
@@ -479,7 +488,7 @@ function writeUtf8(path, text) {
 var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
-                                      startTab: "all", lastTab: "すべて" } };
+                                      startTab: "all", lastTab: "すべて", launchAction: "minimize" } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -496,6 +505,7 @@ var cfg = (function() {
             if (!s.listRowHeight || s.listRowHeight < 20) { s.listRowHeight = 30; }
             if (s.startTab !== "all" && s.startTab !== "last") { s.startTab = "all"; }
             if (!s.lastTab) { s.lastTab = "すべて"; }
+            if (!s.launchAction || ["close", "minimize", "none"].indexOf(s.launchAction) < 0) { s.launchAction = "minimize"; }
             return c;
         }
     } catch (e) {}
@@ -1352,10 +1362,20 @@ function renderList(ct, list) {
 // ===========================================================
 function launch(app) {
     if (!app.path) { return; }
+    var action = (cfg.settings && cfg.settings.launchAction) || "minimize";
     try {
         var cmd = (app.path.match(/^https?:\/\//)) ? app.path : '"' + app.path + '"';
-        wsh.Run(cmd, 1, false);
-        window.close();
+        if (action === "minimize") {
+            // 先に最小化してからアプリ起動することで、アプリが前面に表示される
+            try {
+                wsh.AppActivate(document.title);
+                wsh.SendKeys("% n");
+            } catch (e) {}
+            wsh.Run(cmd, 1, false);
+        } else {
+            wsh.Run(cmd, 1, false);
+            if (action === "close") { window.close(); }
+        }
     } catch (e) {
         alert("\u8d77\u52d5\u5931\u6557: " + app.name + "\n" + e.message);
     }
@@ -1387,7 +1407,8 @@ function openSettings() {
     ge("s-position").value  = cfg.settings.windowPosition || "center";
     ge("s-fontsize").value  = cfg.settings.fontSize || "small";
     ge("s-listheight").value = String(cfg.settings.listRowHeight || 30);
-    ge("s-start-tab").value  = cfg.settings.startTab || "all";
+    ge("s-start-tab").value      = cfg.settings.startTab || "all";
+    ge("s-launch-action").value  = cfg.settings.launchAction || "minimize";
     renderAppList();
     selIdx = -1;
     ge("settings").className = "open";
@@ -1590,6 +1611,7 @@ function cfgSave() {
     cfg.settings.fontSize      = ge("s-fontsize").value;
     cfg.settings.listRowHeight = parseInt(ge("s-listheight").value, 10) || 30;
     cfg.settings.startTab      = ge("s-start-tab").value;
+    cfg.settings.launchAction  = ge("s-launch-action").value;
     saveCfg();
     applyTheme(cfg.settings.theme);
     applyFontSize(cfg.settings.fontSize);
