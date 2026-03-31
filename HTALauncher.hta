@@ -839,33 +839,30 @@ function handleDropApp(e) {
             added = true;
         }
     } else {
-        // パスが取得できなかった場合はダイアログで補完
-        var firstName = "";
-        try {
-            if (dt.files && dt.files.length > 0) {
-                firstName = (dt.files[0].name || "").replace(/\.[^/.]+$/, "");
+        // ローカルパスなし → URL(http/https)かチェック
+        var rawUrl = (urlData || textData || "").replace(/^\s+|\s+$/g, "");
+        var httpMatch = rawUrl.match(/^(https?:\/\/\S+)/);
+        if (httpMatch) {
+            // URLドロップ: タイトルをfetchして直接追加（ダイアログなし）
+            var href = httpMatch[1];
+            var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
+            var urlTitle = fetchPageTitle(href) || href.replace(/^https?:\/\//, "").split("/")[0];
+            cfg.apps.push({ name: urlTitle, path: href, iconPath: faviconUrl(href) || "", group: dropGroup });
+            added = true;
+        } else {
+            // URL以外でパスが取得できなかった場合はダイアログで補完
+            var firstName = "";
+            try {
+                if (dt.files && dt.files.length > 0) {
+                    firstName = (dt.files[0].name || "").replace(/\.[^/.]+$/, "");
+                }
+            } catch (ex) {}
+            dlgOpen(-1);
+            if (firstName) {
+                ge("d-name").value = firstName;
             }
-        } catch (ex) {}
-        dlgOpen(-1);
-        if (firstName) {
-            ge("d-name").value = firstName;
-        }
-        ge("d-path").focus();
-        return false;
-    }
-
-    if (!added) {
-        // URLドロップ処理
-        var url = urlData || textData;
-        if (url) {
-            var m = url.match(/^(https?:\/\/[^\s]+)/);
-            if (m) {
-                var href = m[1];
-                var urlName = href.replace(/^https?:\/\//, "").split("/")[0];
-                var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
-                cfg.apps.push({ name: urlName, path: href, iconPath: faviconUrl(href) || "", group: dropGroup });
-                added = true;
-            }
+            ge("d-path").focus();
+            return false;
         }
     }
 
@@ -987,6 +984,27 @@ function faviconUrl(path) {
     if (!m) return null;
     // Google Favicon Service（より確実にファビコンを取得）
     return "https://www.google.com/s2/favicons?domain=" + m[1] + "&sz=48";
+}
+
+// URLのページタイトルを同期XHRで取得（取得できない場合はnull）
+function fetchPageTitle(url) {
+    var xhr;
+    try { xhr = new XMLHttpRequest(); }
+    catch(e1) {
+        try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch(e2) { xhr = null; }
+    }
+    if (!xhr) { return null; }
+    try {
+        xhr.open("GET", url, false); // 同期
+        xhr.send();
+        if (xhr.status === 200) {
+            var m = xhr.responseText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            if (m && m[1]) {
+                return m[1].replace(/\r?\n/g, " ").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
+            }
+        }
+    } catch(e) {}
+    return null;
 }
 
 // ===========================================================
@@ -1486,6 +1504,8 @@ function dlgSave() {
     saveCfg();
     dlgClose();
     renderAppList();
+    renderTabs();
+    render();
 }
 
 function dlgClose() {
