@@ -56,10 +56,11 @@
     "gridCols": 5,
     "gridRows": 6,
     "windowPosition": "center",
-    "fontSize": "large",
+    "fontSize": "medium",
     "listRowHeight": 30,
-    "startTab": "all",
-    "lastTab": "すべて",
-    "launchAction": "minimize"
+    "startTab": "last",
+    "lastTab": "ツール",
+    "launchAction": "minimize",
+    "topmost": true
   }
 }

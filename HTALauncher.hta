@@ -155,11 +155,13 @@ body.dark  #app-tbl tr:not(.sel):hover td { background: #2A2A2A; }
 body.light #app-tbl tr:not(.sel):hover td { background: #E8E8E8; }
 
 /* ===== 設定: オプションフォーム ===== */
-.srow { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; margin-bottom: 14px; font-size: inherit; }
-.slbl { width: 140px; font-size: inherit; }
+.cfg-inner { display: -ms-flexbox; display: flex; -ms-flex-direction: column; flex-direction: column;
+             -ms-flex-align: center; align-items: center; padding-top: 16px; }
+.srow { display: -ms-flexbox; display: flex; -ms-flex-align: center; align-items: center; margin-bottom: 14px; font-size: inherit; width: 340px; }
+.slbl { width: 160px; font-size: inherit; -ms-flex-negative: 0; flex-shrink: 0; }
 body.dark  .slbl { color: #CCC; }
 body.light .slbl { color: #333; }
-.srow select { width: 180px; height: 26px; padding: 0 6px; font-family: inherit; font-size: inherit; }
+.srow select { -ms-flex: 1; flex: 1; height: 26px; padding: 0 6px; font-family: inherit; font-size: inherit; }
 body.dark  .srow select { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
 body.light .srow select { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
 
@@ -248,11 +250,12 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
   </div>
   <div class="stabs">
     <button class="stabtn active" id="st-apps">登録一覧</button>
-    <button class="stabtn"        id="st-cfg" >動作・外観</button>
+    <button class="stabtn"        id="st-act" >動作</button>
+    <button class="stabtn"        id="st-look">外観</button>
   </div>
   <div class="scontent">
 
-    <!-- アイテム管理タブ -->
+    <!-- 登録一覧タブ -->
     <div id="tab-apps" class="stab active">
       <div class="abtnrow">
         <button class="sbtn pri" id="s-add" >追加</button>
@@ -273,82 +276,94 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
       </table>
     </div>
 
-    <!-- 設定タブ -->
-    <div id="tab-cfg" class="stab">
-      <div class="srow">
-        <span class="slbl">テーマ</span>
-        <select id="s-theme">
-          <option value="dark" >ダーク</option>
-          <option value="light">ライト</option>
-        </select>
+    <!-- 動作タブ -->
+    <div id="tab-act" class="stab">
+      <div class="cfg-inner">
+        <div class="srow">
+          <span class="slbl">起動時のタブ</span>
+          <select id="s-start-tab">
+            <option value="all" >すべて</option>
+            <option value="last">最後に開いていたタブ</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">初期表示位置</span>
+          <select id="s-position">
+            <option value="topLeft">左上</option>
+            <option value="topRight">右上</option>
+            <option value="bottomLeft">左下</option>
+            <option value="bottomRight">右下</option>
+            <option value="center">中央</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">アイテム選択後の動作</span>
+          <select id="s-launch-action">
+            <option value="minimize">最小化する</option>
+            <option value="close">アプリを終了する</option>
+            <option value="none">そのまま</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">最前面表示</span>
+          <select id="s-topmost">
+            <option value="false">しない</option>
+            <option value="true">する</option>
+          </select>
+        </div>
       </div>
-      <div class="srow">
-        <span class="slbl">起動時のタブ</span>
-        <select id="s-start-tab">
-          <option value="all" >すべて</option>
-          <option value="last">最後に開いていたタブ</option>
-        </select>
-      </div>
-      <div class="srow">
-        <span class="slbl">初期表示位置</span>
-        <select id="s-position">
-          <option value="topLeft">左上</option>
-          <option value="topRight">右上</option>
-          <option value="bottomLeft">左下</option>
-          <option value="bottomRight">右下</option>
-          <option value="center">中央</option>
-        </select>
-      </div>
-      <div class="srow">
-        <span class="slbl">文字サイズ</span>
-        <select id="s-fontsize">
-          <option value="small">小</option>
-          <option value="medium">中</option>
-          <option value="large">大</option>
-        </select>
-      </div>
-      <div class="srow">
-        <span class="slbl">既定のビュー</span>
-        <select id="s-view">
-          <option value="grid">グリッド</option>
-          <option value="list">リスト</option>
-        </select>
-      </div>
-      <div class="srow">
-        <span class="slbl">グリッド：各セル幅 (px)</span>
-        <select id="s-cellw">
-          <option value="48">48</option>
-          <option value="56">56</option>
-          <option value="64">64</option>
-          <option value="72">72</option>
-          <option value="80">80</option>
-          <option value="88">88</option>
-          <option value="96">96</option>
-          <option value="112">112</option>
-        </select>
-      </div>
-      <div class="srow">
-        <span class="slbl">グリッド：列数</span>
-        <select id="s-cols"></select>
-      </div>
-      <div class="srow">
-        <span class="slbl">グリッド：行数</span>
-        <select id="s-rows"></select>
-      </div>
-      <div class="srow">
-        <span class="slbl">リスト：行高 (px)</span>
-        <select id="s-listheight"></select>
-      </div>
-      <div class="srow">
-        <span class="slbl">アイテム選択後の動作</span>
-        <select id="s-launch-action">
-          <option value="minimize">最小化する</option>
-          <option value="close">アプリを終了する</option>
-          <option value="none">そのまま</option>
-        </select>
-      </div>
-      <div class="srow">
-        <button class="sbtn pri" id="s-save">保存</button>
+    </div>
+
+    <!-- 外観タブ -->
+    <div id="tab-look" class="stab">
+      <div class="cfg-inner">
+        <div class="srow">
+          <span class="slbl">テーマ</span>
+          <select id="s-theme">
+            <option value="dark" >ダーク</option>
+            <option value="light">ライト</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">文字サイズ</span>
+          <select id="s-fontsize">
+            <option value="small">小</option>
+            <option value="medium">中</option>
+            <option value="large">大</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">既定のビュー</span>
+          <select id="s-view">
+            <option value="grid">グリッド</option>
+            <option value="list">リスト</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">グリッド：各セル幅 (px)</span>
+          <select id="s-cellw">
+            <option value="48">48</option>
+            <option value="56">56</option>
+            <option value="64">64</option>
+            <option value="72">72</option>
+            <option value="80">80</option>
+            <option value="88">88</option>
+            <option value="96">96</option>
+            <option value="112">112</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">グリッド：列数</span>
+          <select id="s-cols"></select>
+        </div>
+        <div class="srow">
+          <span class="slbl">グリッド：行数</span>
+          <select id="s-rows"></select>
+        </div>
+        <div class="srow">
+          <span class="slbl">リスト：行高 (px)</span>
+          <select id="s-listheight"></select>
+        </div>
       </div>
     </div>
 
@@ -502,7 +517,7 @@ function readUnicode(path) {
 var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
-                                      startTab: "all", lastTab: "すべて", launchAction: "minimize" } };
+                                      startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -520,6 +535,7 @@ var cfg = (function() {
             if (s.startTab !== "all" && s.startTab !== "last") { s.startTab = "all"; }
             if (!s.lastTab) { s.lastTab = "すべて"; }
             if (!s.launchAction || ["close", "minimize", "none"].indexOf(s.launchAction) < 0) { s.launchAction = "minimize"; }
+            if (typeof s.topmost !== "boolean") { s.topmost = false; }
             return c;
         }
     } catch (e) {}
@@ -589,15 +605,34 @@ window.onload = function () {
     // 設定ボタン
     ge("btn-close-s").onclick = function () { closeSettings(); };
     ge("st-apps").onclick     = function () { switchTab("apps"); };
-    ge("st-cfg").onclick      = function () { switchTab("cfg"); };
+    ge("st-act").onclick      = function () { switchTab("act"); };
+    ge("st-look").onclick     = function () { switchTab("look"); };
     ge("s-add").onclick       = function () { dlgOpen(-1); };
     ge("s-edit").onclick      = function () { dlgOpenSel(); };
     ge("s-del").onclick       = function () { appDel(); };
     ge("s-up").onclick        = function () { appMove(-1); };
     ge("s-down").onclick      = function () { appMove(1); };
-    ge("s-save").onclick      = function () { cfgSave(); };
     ge("s-claunch").onclick   = function () { claunchImportClick(); };
     ge("claunch-ini-picker").onchange = function () { claunchImportLoad(this); };
+
+    // 動作タブ：変更即保存
+    ge("s-start-tab").onchange    = function () { cfg.settings.startTab     = this.value; saveCfg(); };
+    ge("s-position").onchange     = function () { cfg.settings.windowPosition = this.value; saveCfg(); positionToWindow(); };
+    ge("s-launch-action").onchange = function () { cfg.settings.launchAction = this.value; saveCfg(); };
+    ge("s-topmost").onchange      = function () {
+        cfg.settings.topmost = (this.value === "true");
+        saveCfg();
+        if (cfg.settings.topmost) { applyTopmost(); }
+    };
+
+    // 外観タブ：変更即保存
+    ge("s-theme").onchange    = function () { cfg.settings.theme       = this.value; saveCfg(); applyTheme(this.value); };
+    ge("s-fontsize").onchange = function () { cfg.settings.fontSize    = this.value; saveCfg(); applyFontSize(this.value); };
+    ge("s-view").onchange     = function () { cfg.settings.defaultView = this.value; saveCfg(); viewMode = this.value; updViewBtns(); render(); };
+    ge("s-cellw").onchange    = function () { cfg.settings.gridCellWidth = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
+    ge("s-cols").onchange     = function () { cfg.settings.gridCols    = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
+    ge("s-rows").onchange     = function () { cfg.settings.gridRows    = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
+    ge("s-listheight").onchange = function () { cfg.settings.listRowHeight = parseInt(this.value, 10); saveCfg(); render(); };
 
     // ダイアログボタン
     ge("d-ok").onclick     = function () { dlgSave(); };
@@ -634,6 +669,7 @@ window.onload = function () {
     render();
     updViewBtns();
     positionToWindow();
+    if (cfg.settings.topmost) { applyTopmost(); }
 
     // 右クリックメニュー
     ge("menu-edit").onclick = function () {
@@ -1415,19 +1451,21 @@ function updViewBtns() {
 // 設定パネル
 // ===========================================================
 function openSettings() {
-    ge("s-theme").value     = cfg.settings.theme;
-    ge("s-view").value      = cfg.settings.defaultView;
-    ge("s-cellw").value     = String(cfg.settings.gridCellWidth || 72);
-    ge("s-cols").value      = String(cfg.settings.gridCols || 5);
-    ge("s-rows").value      = String(cfg.settings.gridRows || 6);
-    ge("s-position").value  = cfg.settings.windowPosition || "center";
-    ge("s-fontsize").value  = cfg.settings.fontSize || "small";
-    ge("s-listheight").value = String(cfg.settings.listRowHeight || 30);
+    ge("s-theme").value          = cfg.settings.theme;
+    ge("s-view").value           = cfg.settings.defaultView;
+    ge("s-cellw").value          = String(cfg.settings.gridCellWidth || 72);
+    ge("s-cols").value           = String(cfg.settings.gridCols || 5);
+    ge("s-rows").value           = String(cfg.settings.gridRows || 6);
+    ge("s-position").value       = cfg.settings.windowPosition || "center";
+    ge("s-fontsize").value       = cfg.settings.fontSize || "small";
+    ge("s-listheight").value     = String(cfg.settings.listRowHeight || 30);
     ge("s-start-tab").value      = cfg.settings.startTab || "all";
     ge("s-launch-action").value  = cfg.settings.launchAction || "minimize";
+    ge("s-topmost").value        = cfg.settings.topmost ? "true" : "false";
     renderAppList();
     selIdx = -1;
     ge("settings").className = "open";
+    switchTab("apps");
 }
 
 function closeSettings() {
@@ -1438,9 +1476,11 @@ function closeSettings() {
 
 function switchTab(t) {
     ge("tab-apps").className = "stab" + (t === "apps" ? " active" : "");
-    ge("tab-cfg").className  = "stab" + (t === "cfg"  ? " active" : "");
+    ge("tab-act").className  = "stab" + (t === "act"  ? " active" : "");
+    ge("tab-look").className = "stab" + (t === "look" ? " active" : "");
     ge("st-apps").className  = "stabtn" + (t === "apps" ? " active" : "");
-    ge("st-cfg").className   = "stabtn" + (t === "cfg"  ? " active" : "");
+    ge("st-act").className   = "stabtn" + (t === "act"  ? " active" : "");
+    ge("st-look").className  = "stabtn" + (t === "look" ? " active" : "");
 }
 
 // ===========================================================
@@ -1731,29 +1771,15 @@ function positionToWindow() {
 }
 
 // ===========================================================
-// 設定保存
+// 最前面表示
+// TopMost.ps1 を非表示 PowerShell で起動する
+// TopMost.ps1 が "HTML Application Host Window Class" で HTA を特定し SetWindowPos する
 // ===========================================================
-function cfgSave() {
-    cfg.settings.theme         = ge("s-theme").value;
-    cfg.settings.defaultView   = ge("s-view").value;
-    cfg.settings.gridCellWidth = parseInt(ge("s-cellw").value, 10) || 72;
-    cfg.settings.gridCols      = parseInt(ge("s-cols").value,  10) || 5;
-    cfg.settings.gridRows      = parseInt(ge("s-rows").value,  10) || 6;
-    cfg.settings.windowPosition = ge("s-position").value;
-    cfg.settings.fontSize      = ge("s-fontsize").value;
-    cfg.settings.listRowHeight = parseInt(ge("s-listheight").value, 10) || 30;
-    cfg.settings.startTab      = ge("s-start-tab").value;
-    cfg.settings.launchAction  = ge("s-launch-action").value;
-    saveCfg();
-    applyTheme(cfg.settings.theme);
-    applyFontSize(cfg.settings.fontSize);
-    viewMode = cfg.settings.defaultView;
-    updViewBtns();
-    resizeToGrid();
-    positionToWindow();
-    render();
-    alert("\u8a2d\u5b9a\u3092\u4fdd\u5b58\u3057\u307e\u3057\u305f\u3002");
+function applyTopmost() {
+    var ps1Path = DIR + "\\TopMost.ps1";
+    wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '"', 0, false);
 }
+
 </script>
 </body>
 </html>
