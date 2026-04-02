@@ -260,6 +260,7 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
         <button class="sbtn"     id="s-del" >削除</button>
         <button class="sbtn"     id="s-up"  >↑</button>
         <button class="sbtn"     id="s-down">↓</button>
+        <button class="sbtn"     id="s-claunch">CLaunch.ini取込</button>
       </div>
       <table id="app-tbl">
         <thead><tr>
@@ -369,6 +370,7 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
       <button class="sbtn" id="d-path-folder" style="-ms-flex-negative:0;flex-shrink:0;margin-left:4px">フォルダ</button>
     </div>
     <input type="file" id="path-file-picker" style="display:none">
+    <input type="file" id="claunch-ini-picker" accept=".ini" style="display:none">
     <div class="dlg-row">
       <span class="dlg-lbl">グループ</span>
       <input class="dlg-inp" id="d-group" type="text">
@@ -442,6 +444,7 @@ Function GetDroppedPaths()
     On Error GoTo 0
     GetDroppedPaths = result
 End Function
+
 </script>
 
 <script language="JScript">
@@ -479,6 +482,18 @@ function writeUtf8(path, text) {
     st.WriteText(text);
     st.SaveToFile(path, 2);
     st.Close();
+}
+
+function readUnicode(path) {
+    var st = new ActiveXObject("ADODB.Stream");
+    st.Type    = 2;
+    st.Charset = "unicode";
+    st.Open();
+    st.LoadFromFile(path);
+    var s = st.ReadText();
+    st.Close();
+    if (s && s.charCodeAt(0) === 0xFEFF) { s = s.substring(1); }
+    return s;
 }
 
 // ===========================================================
@@ -581,6 +596,8 @@ window.onload = function () {
     ge("s-up").onclick        = function () { appMove(-1); };
     ge("s-down").onclick      = function () { appMove(1); };
     ge("s-save").onclick      = function () { cfgSave(); };
+    ge("s-claunch").onclick   = function () { claunchImportClick(); };
+    ge("claunch-ini-picker").onchange = function () { claunchImportLoad(this); };
 
     // ダイアログボタン
     ge("d-ok").onclick     = function () { dlgSave(); };
@@ -1497,6 +1514,122 @@ function appMove(dir) {
     selIdx = ni;
     saveCfg();
     renderAppList();
+}
+
+// ===========================================================
+// CLaunch.ini 取込
+// ===========================================================
+var claunchImportMode = "";
+
+function claunchImportClick() {
+    if (!confirm("CLaunch.ini を取り込みます。\n\nOK = 続ける　　キャンセル = 中止")) { return; }
+    var replace = confirm("既存データの扱いを選択してください。\n\nOK = 既存を削除して取り込む\nキャンセル = 既存を残して追加する");
+    claunchImportMode = replace ? "replace" : "append";
+    ge("claunch-ini-picker").click();
+}
+
+function claunchImportLoad(input) {
+    var path = input.value;
+    input.value = "";
+    if (!path) { return; }
+    try {
+        var items = parseCLaunchIni(path);
+        if (claunchImportMode === "replace") {
+            cfg.apps = items;
+        } else {
+            cfg.apps = cfg.apps.concat(items);
+        }
+        selIdx = -1;
+        saveCfg();
+        renderAppList();
+        renderTabs();
+        render();
+        alert(items.length + " 件を取り込みました。");
+    } catch (e) {
+        alert("取込に失敗しました: " + e.message);
+    }
+}
+
+function parseCLaunchIni(path) {
+    var text = readUnicode(path);
+    var lines = text.split(/\r?\n/);
+
+    var pages = [];
+    var currentPage = null;
+    var currentItem = null;
+    var pagesCount   = -1;
+    var afterPages   = false;
+    var inBtn        = false;
+
+    function finishItem() {
+        if (currentItem && currentPage) {
+            currentPage.items.push(currentItem);
+        }
+        currentItem = null;
+    }
+    function finishPage() {
+        finishItem();
+        if (currentPage) { pages.push(currentPage); }
+        currentPage = null;
+        inBtn = false;
+    }
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/^\s+|\s+$/g, "");
+        if (!line) { continue; }
+
+        if (line.charAt(0) === "[") {
+            var sec = line.replace(/^\[/, "").replace(/\].*$/, "");
+
+            if (sec === "Pages") {
+                afterPages = true;
+                finishPage();
+                continue;
+            }
+            if (afterPages && /^Page\d{3}$/.test(sec)) {
+                finishPage();
+                if (pagesCount >= 0 && pages.length >= pagesCount) { break; }
+                currentPage = { name: "", items: [] };
+                inBtn = false;
+                continue;
+            }
+            if (afterPages && currentPage && /^Btn\d{3}$/.test(sec)) {
+                finishItem();
+                currentItem = { name: "", file: "" };
+                inBtn = true;
+                continue;
+            }
+            // Any other section while building a page finalizes it
+            if (currentPage) { finishPage(); }
+            continue;
+        }
+
+        var eq = line.indexOf("=");
+        if (eq < 0) { continue; }
+        var key = line.substring(0, eq).replace(/^\s+|\s+$/g, "");
+        var val = line.substring(eq + 1);
+
+        if (afterPages && !currentPage && key === "Count") {
+            pagesCount = parseInt(val, 10) || 0;
+        } else if (inBtn && currentItem) {
+            if (key === "Name") { currentItem.name = val; }
+            else if (key === "File") { currentItem.file = val; }
+        } else if (currentPage && !inBtn) {
+            if (key === "Name") { currentPage.name = val; }
+        }
+    }
+    finishPage();
+
+    var apps = [];
+    for (var p = 0; p < pages.length; p++) {
+        var pg = pages[p];
+        for (var b = 0; b < pg.items.length; b++) {
+            var btn = pg.items[b];
+            if (!btn.file) { continue; }
+            apps.push({ name: btn.name || btn.file, path: btn.file, iconPath: "", group: pg.name });
+        }
+    }
+    return apps;
 }
 
 function dlgOpenSel() {
