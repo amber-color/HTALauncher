@@ -1397,15 +1397,19 @@ function renderGrid(ct, list) {
         }
         if (needSave) { saveCfg(); }
 
-        // 3. コンテナサイズ計算（アイテム最大座標 + 余白 2 セル分）
+        // 3. コンテナサイズ計算
+        var cols  = cfg.settings.gridCols || 5;
+        var rows  = cfg.settings.gridRows || 6;
         var maxC = 0, maxR = 0;
         for (var si = 0; si < list.length; si++) {
             var sp = list[si].a.tabPositions;
             if (sp.col > maxC) { maxC = sp.col; }
             if (sp.row > maxR) { maxR = sp.row; }
         }
-        var innerW = (maxC + 2) * (cw + 4);
-        var innerH = (maxR + 2) * (cellH + 4);
+        // アイコンが設定グリッド内に収まる場合はグリッドサイズに合わせてスクロールバーを出さない。
+        // はみ出す場合のみ余白 2 セル分を追加してスクロールを許可する。
+        var innerW = ((maxC < cols) ? cols : (maxC + 2)) * (cw + 4);
+        var innerH = ((maxR < rows) ? rows : (maxR + 2)) * (cellH + 4);
         // 4. 絶対配置の親コンテナ（サイズは内容だけで決定し、ct 幅に依存させない）
         var inner = document.createElement("div");
         inner.style.position = "relative";
@@ -2004,7 +2008,7 @@ function dlgOpen(idx) {
     var app = (idx >= 0) ? cfg.apps[idx] : null;
     ge("d-name").value  = app ? (app.name      || "") : "";
     ge("d-path").value  = app ? (app.path      || "") : "";
-    ge("d-group").value = app ? (app.group     || "") : "";
+    ge("d-group").value = app ? (app.group     || "") : (curTab !== "すべて" ? curTab : "");
     ge("d-icon").value  = app ? (app.iconPath  || "") : "";
     ge("dlg-ov").className = "open";
     ge("d-name").focus();
