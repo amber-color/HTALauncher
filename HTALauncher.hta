@@ -311,6 +311,26 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
             <option value="true">する</option>
           </select>
         </div>
+        <div class="srow">
+          <span class="slbl">カーソル位置で起動</span>
+          <select id="s-cursor-trigger">
+            <option value="false">しない</option>
+            <option value="true">する</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">トリガー位置</span>
+          <select id="s-cursor-position">
+            <option value="topLeft">左上角</option>
+            <option value="topRight">右上角</option>
+            <option value="bottomLeft">左下角</option>
+            <option value="bottomRight">右下角</option>
+            <option value="top">上端</option>
+            <option value="bottom">下端</option>
+            <option value="left">左端</option>
+            <option value="right">右端</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -517,7 +537,8 @@ function readUnicode(path) {
 var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
-                                      startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false } };
+                                      startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false,
+                                      cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight" } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -536,6 +557,8 @@ var cfg = (function() {
             if (!s.lastTab) { s.lastTab = "すべて"; }
             if (!s.launchAction || ["close", "minimize", "none"].indexOf(s.launchAction) < 0) { s.launchAction = "minimize"; }
             if (typeof s.topmost !== "boolean") { s.topmost = false; }
+            if (typeof s.cursorTriggerEnabled !== "boolean") { s.cursorTriggerEnabled = false; }
+            if (!s.cursorTriggerPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "top", "bottom", "left", "right"].indexOf(s.cursorTriggerPosition) < 0) { s.cursorTriggerPosition = "bottomRight"; }
             // tabPositions 旧フォーマット移行: {"group": {col,row}} → {col,row}
             for (var mi = 0; mi < c.apps.length; mi++) {
                 var mtp = c.apps[mi].tabPositions;
@@ -647,6 +670,15 @@ window.onload = function () {
         saveCfg();
         if (cfg.settings.topmost) { applyTopmost(); }
     };
+    ge("s-cursor-trigger").onchange = function () {
+        cfg.settings.cursorTriggerEnabled = (this.value === "true");
+        saveCfg();
+        if (cfg.settings.cursorTriggerEnabled) { startCursorTrigger(); }
+    };
+    ge("s-cursor-position").onchange = function () {
+        cfg.settings.cursorTriggerPosition = this.value;
+        saveCfg();
+    };
 
     // 外観タブ：変更即保存
     ge("s-theme").onchange    = function () { cfg.settings.theme       = this.value; saveCfg(); applyTheme(this.value); };
@@ -693,6 +725,7 @@ window.onload = function () {
     updViewBtns();
     positionToWindow();
     if (cfg.settings.topmost) { applyTopmost(); }
+    if (cfg.settings.cursorTriggerEnabled) { startCursorTrigger(); }
 
     // 右クリックメニュー
     ge("menu-edit").onclick = function () {
@@ -1349,6 +1382,9 @@ function makeIconEl(app, size, radius) {
                 d.textContent      = init;
             };
         }(div));
+        img.onload = (function (capturedApp, capturedSrc) {
+            return function () { cacheIcon(capturedApp, this, capturedSrc); };
+        }(app, src));
         img.src = src;
         div.appendChild(img);
     } else {
@@ -1360,6 +1396,72 @@ function makeIconEl(app, size, radius) {
         div.textContent      = init;
     }
     return div;
+}
+
+// ===========================================================
+// アイコン URL → base64 data URL キャッシュ
+// ===========================================================
+var _iconCacheTimer = null;
+
+function updateIconCache(app, dataUrl) {
+    app.iconPath = dataUrl;
+    if (_iconCacheTimer) { clearTimeout(_iconCacheTimer); }
+    _iconCacheTimer = setTimeout(function () {
+        _iconCacheTimer = null;
+        saveCfg();
+    }, 1000);
+}
+
+function cacheIcon(app, imgEl, src) {
+    if (!src || src.indexOf("data:") === 0) { return; }
+    if (src.indexOf("http") !== 0)          { return; }
+
+    // Canvas 方式（プライマリ）
+    try {
+        var canvas = document.createElement("canvas");
+        canvas.width  = imgEl.naturalWidth  || imgEl.width  || 48;
+        canvas.height = imgEl.naturalHeight || imgEl.height || 48;
+        canvas.getContext("2d").drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+        var dataUrl = canvas.toDataURL("image/png");
+        if (dataUrl && dataUrl.length > 6 && dataUrl !== "data:,") {
+            updateIconCache(app, dataUrl);
+            return;
+        }
+    } catch (eCanvas) {}
+
+    // MSXML2.XMLHTTP + ADODB.Stream 方式（CORS 汚染時フォールバック）
+    try {
+        var xhr = null;
+        try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch (e1) {
+            try { xhr = new ActiveXObject("MSXML2.XMLHTTP"); }  catch (e2) {}
+        }
+        if (!xhr) { return; }
+
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4 || xhr.status !== 200) { return; }
+            try {
+                var ct = xhr.getResponseHeader("Content-Type") || "";
+                var mime;
+                if      (ct.indexOf("svg")  >= 0) { mime = "image/svg+xml"; }
+                else if (ct.indexOf("png")  >= 0) { mime = "image/png"; }
+                else if (ct.indexOf("gif")  >= 0) { mime = "image/gif"; }
+                else if (ct.indexOf("jpeg") >= 0 || ct.indexOf("jpg") >= 0) { mime = "image/jpeg"; }
+                else if (/\.svg(\?|$)/i.test(src))   { mime = "image/svg+xml"; }
+                else if (/\.gif(\?|$)/i.test(src))   { mime = "image/gif"; }
+                else if (/\.jpe?g(\?|$)/i.test(src)) { mime = "image/jpeg"; }
+                else                                  { mime = "image/png"; }
+
+                var st = new ActiveXObject("ADODB.Stream");
+                st.Type = 1; st.Open(); st.Write(xhr.responseBody);
+                st.Position = 0; st.Type = 2; st.Charset = "iso-8859-1";
+                var dataUrl = "data:" + mime + ";base64," + btoa(st.ReadText());
+                st.Close();
+                updateIconCache(app, dataUrl);
+            } catch (eInner) {}
+        };
+        xhr.open("GET", src, true);
+        xhr.send();
+    } catch (eOuter) {}
 }
 
 // ===========================================================
@@ -1779,6 +1881,8 @@ function openSettings() {
     ge("s-start-tab").value      = cfg.settings.startTab || "all";
     ge("s-launch-action").value  = cfg.settings.launchAction || "minimize";
     ge("s-topmost").value        = cfg.settings.topmost ? "true" : "false";
+    ge("s-cursor-trigger").value = cfg.settings.cursorTriggerEnabled ? "true" : "false";
+    ge("s-cursor-position").value = cfg.settings.cursorTriggerPosition || "bottomRight";
     renderAppList();
     selIdx = -1;
     ge("settings").className = "open";
@@ -2099,6 +2203,16 @@ function positionToWindow() {
 function applyTopmost() {
     var ps1Path = DIR + "\\TopMost.ps1";
     wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '"', 0, false);
+}
+
+// ===========================================================
+// カーソル位置トリガー
+// CursorTrigger.hta を非表示起動する
+// （多重起動は CursorTrigger.hta 側の CursorTriggerGuard.ps1 が防止する）
+// ===========================================================
+function startCursorTrigger() {
+    var htaPath = DIR + "\\CursorTrigger.hta";
+    wsh.Run('mshta.exe "' + htaPath + '"', 0, false);
 }
 
 </script>

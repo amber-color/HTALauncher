@@ -103,6 +103,8 @@
     "startTab": "last",
     "lastTab": "ウェブ",
     "launchAction": "minimize",
-    "topmost": true
+    "topmost": true,
+    "cursorTriggerEnabled": true,
+    "cursorTriggerPosition": "topRight"
   }
 }

@@ -145,6 +145,18 @@ HTALauncherは、Windows用のHTA（HTML Application）ベースのアプリラ�
 | 初期表示位置 | 左上・右上・左下・右下・中央 |
 | アイテム選択後の動作 | 最小化する / アプリを終了する / そのまま |
 | 最前面表示 | する / しない |
+| カーソル位置で起動 | する / しない |
+| トリガー位置 | 左上角・右上角・左下角・右下角・上端・下端・左端・右端 |
+
+### カーソル位置トリガー
+
+「カーソル位置で起動」を「する」にすると、画面の指定した角（4px四方）または辺（画面いっぱいの2px帯）にカーソルを寄せることで、HTALauncherを最小化から復帰、または未起動なら新規起動できる。
+
+- 常駐用に `CursorTrigger.hta` という極小・透明・タスクバー非表示のウィンドウが背後で起動する（`HTALauncher.hta` と同じフォルダに配置）
+- この設定をONにした状態でHTALauncherを起動するたびに常駐プロセスが（未起動なら）自動的に立ち上がる
+- OFFにすると、常駐プロセスは数秒以内に自動終了する
+- Windowsログイン時の自動起動はしない（HTALauncherを一度手動起動するまではカーソルトリガーは働かない）
+- HTALauncher本体がまさにそのトリガー位置に表示されている間は、極小ウィンドウが隠れて反応しないことがある
 
 ### 外観タブ
 
@@ -182,7 +194,9 @@ HTALauncherは、Windows用のHTA（HTML Application）ベースのアプリラ�
     "defaultView": "grid",
     "gridCellWidth": 72,
     "gridCols": 5,
-    "gridRows": 6
+    "gridRows": 6,
+    "cursorTriggerEnabled": false,
+    "cursorTriggerPosition": "bottomRight"
   }
 }
 ```
