@@ -1,4 +1,4 @@
-# 既に CursorTrigger.hta が起動していれば exit 1、なければ exit 0
+﻿# 既に CursorTrigger.hta が起動していれば exit 1、なければ exit 0
 # ("HTML Application Host Window Class" かつ タイトルが一致するウィンドウを EnumWindows で数える。
 #  FindWindow は先頭1件しか取れないため、多重起動の検知には使えない)
 
@@ -6,7 +6,14 @@ param(
     [string]$title = "HTALauncherCursorTrigger"
 )
 
-Add-Type @"
+# Add-Type によるC#コンパイルはプロセス起動のたびに約1秒かかるため、
+# 一度コンパイルした結果を DLL として保存し、次回以降はそれを読み込むだけ
+# （コンパイルなし）にすることで CursorTrigger.hta の起動を高速化する。
+# Add-Type -OutputAssembly はDLLをディスクに保存するだけで現在のセッションには
+# 読み込まないため、保存後に改めて -Path で読み込む。
+$dllPath = Join-Path $PSScriptRoot "Win32GuardHelpers.dll"
+
+$csharpSource = @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -24,6 +31,11 @@ public class Win32Guard {
     public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
 }
 "@
+
+if (-not (Test-Path $dllPath)) {
+    Add-Type -OutputAssembly $dllPath -TypeDefinition $csharpSource
+}
+Add-Type -Path $dllPath
 
 $script:count = 0
 

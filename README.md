@@ -154,6 +154,7 @@ HTALauncherは、Windows用のHTA（HTML Application）ベースのアプリラ�
 
 - 常駐用に `CursorTrigger.hta` という極小・透明・タスクバー非表示のウィンドウが背後で起動する（`HTALauncher.hta` と同じフォルダに配置）
 - この設定をONにした状態でHTALauncherを起動するたびに常駐プロセスが（未起動なら）自動的に立ち上がる
+- 復帰処理は常駐の `ActivateWatcher.ps1` が担当し、ホバーのたびに軽量なシグナルファイルを書き込むだけなので、数十〜百数十ms程度で反応する（毎回PowerShellを起動する方式だと1秒近くかかるため）
 - OFFにすると、常駐プロセスは数秒以内に自動終了する
 - Windowsログイン時の自動起動はしない（HTALauncherを一度手動起動するまではカーソルトリガーは働かない）
 - HTALauncher本体がまさにそのトリガー位置に表示されている間は、極小ウィンドウが隠れて反応しないことがある

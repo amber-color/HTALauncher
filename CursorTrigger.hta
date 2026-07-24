@@ -61,6 +61,7 @@ function getDir() {
 var DIR     = getDir();
 var CFGPATH = DIR + "\\config.json";
 var MAINHTA = DIR + "\\HTALauncher.hta";
+var TRIGGER_FLAG = DIR + "\\.activate_trigger";
 
 function readUtf8(path) {
     var st = new ActiveXObject("ADODB.Stream");
@@ -120,7 +121,7 @@ function applyZone() {
 // ===========================================================
 function isDuplicateInstance() {
     var ps1Path = DIR + "\\CursorTriggerGuard.ps1";
-    var rc = wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '"', 0, true);
+    var rc = wsh.Run('powershell -NoProfile -NoLogo -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '"', 0, true);
     return rc === 1;
 }
 
@@ -129,24 +130,36 @@ function isDuplicateInstance() {
 // ===========================================================
 function applyTopmost() {
     var ps1Path = DIR + "\\TopMost.ps1";
-    wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '" -title "HTALauncherCursorTrigger"', 0, false);
+    wsh.Run('powershell -NoProfile -NoLogo -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '" -title "HTALauncherCursorTrigger"', 0, false);
 }
 
 // ===========================================================
 // HTALauncher 本体をアクティブ化（未起動なら起動）
 // マウスの hover はクリックと違い OS のフォアグラウンド権限を伴わないため、
 // 単純な ShowWindow/SetForegroundWindow（同一プロセス内で呼んでも）は
-// Windows のフォアグラウンドロックで無視される。ActivateOrLaunch.ps1 が
+// Windows のフォアグラウンドロックで無視される。ActivateWatcher.ps1 が
 // AttachThreadInput で現在のフォアグラウンドスレッドに一時的に接続してから
 // 操作することでこれを回避する（AutoHotkey 等でも使われる正規の手段）。
+//
+// ホバーのたびに powershell.exe を新規起動すると、プロセス起動だけで
+// 約0.9秒かかり復帰が遅く感じるため、常駐させた ActivateWatcher.ps1 に
+// 軽量なシグナルファイルを書き込むだけにして高速化する。
 // ===========================================================
+function startActivateWatcher() {
+    var ps1Path = DIR + "\\ActivateWatcher.ps1";
+    wsh.Run('powershell -NoProfile -NoLogo -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path +
+            '" -triggerFlagPath "' + TRIGGER_FLAG + '" -htaPath "' + MAINHTA + '"', 0, false);
+}
+
 var lastTrigger = 0;
 function activateOrLaunch() {
     var now = new Date().getTime();
     if (now - lastTrigger < 1500) { return; } // 連続発火防止
     lastTrigger = now;
-    var ps1Path = DIR + "\\ActivateOrLaunch.ps1";
-    wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '" -htaPath "' + MAINHTA + '"', 0, false);
+    try {
+        var f = fso.CreateTextFile(TRIGGER_FLAG, true);
+        f.Close();
+    } catch (e) {}
 }
 
 document.body.onmouseover = function () { activateOrLaunch(); };
@@ -161,6 +174,7 @@ function InitTrigger() {
         lastPos = c0 && c0.settings && c0.settings.cursorTriggerPosition;
     } catch (eZone) {}
     try { applyTopmost(); } catch (eTop) {}
+    try { startActivateWatcher(); } catch (eWatch) {}
 
     // 設定を毎秒ポーリング：無効化されたら自己終了、位置設定が変わったら追従
     // config.json はもう一方の HTALauncher.hta も書き込むため、読み込みに
