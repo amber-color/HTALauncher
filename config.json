@@ -43,7 +43,7 @@
     {
       "name": "Google",
       "path": "https://www.google.co.jp/",
-      "iconPath": "https://www.google.com/s2/favicons?domain=google.co.jp&sz=48",
+      "iconPath": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAmVBMVEVHcEz7/Pzr7O3x8fL5+fn////5+fn9/f35+fn9/f3Oz9H///////85q1jrT0FGh/VJivX7wRMyf/TrSjwwqVH8vgNArF4gpUfsU0XqOyr5+fjrQTL0pZ/27umg0qzT6tn61tT/89c8g/Xh6/333pmzy/oYdvP5yLu+4cfwdVhlu3pBlMNmm/H8zl2qtjn1mySGrfeBxZJHcEwYlMMfAAAAM3RSTlMAzUCKRLiw51CPEBH//////////////////////////////////////////////////wAdylnEAAACDElEQVRIic2Va5ebIBCGE426SVCr4AXxkk2zm0223bb//88VFHAwwtlzuh/65ovB54WZAYfN5t+12wcR4oqC/e4TdIAMBW7PU4QeFD1Z8eP2ERfaHi3Tr+NCq4vs7TxC+0c+dPEIha75T+0toRTf2pN9DRB/mzCMEy7MKG4teRzn2SdYCjM8rwJrpevZ0qSe8QRjTPUi25WAWlbXCVyBG7qVoCLAjwbGKKVMrAB4FCl+p+KnE8/q9tR1p7amBo+QOlfqvCWJ4DG+KuBq8iiQBvWajWHXDbLKjCgral5S7OBlTHKTn4ssu2F2dfByu2UKF27IftUuXiYhi/pTGIqLeveaA73KwQjmnAkVz8qQf9NK0/w7zFo+F19mSC0Ga0gPBnfSgk9zI2lQ1uKjXFYyF4bUKOu8ccUHIW8m/3Lm+Pm3/DdtnKezLuOyJObRGOfPX+Q/zzh8FxKX4gcdP84wBbToMDFfoCzjOapu4s9qAdVrVExDxXEuUvZD1w1v94q8jwY1gbf8RPsqnkQqLkL4wzvYBP2J6i8C/VEOLVLqjBHo/LrN9AsHiatevQNtZnNQg80gAgE4GXTFDsAAW2VPxuhjQvhDP48vWr4Pij/097iq4ns/gEF/s5Dzeli9IHwX/zD/mIe1wTSWe/FguxQP6zzXbu3add/UXmgE1oSeE588fhg1XFHof4L+D/QXfStY2aIyXE0AAAAASUVORK5CYII=",
       "group": "ウェブ",
       "tabPositions": {
         "col": 3,
@@ -53,7 +53,7 @@
     {
       "name": "Wikipedia",
       "path": "https://ja.wikipedia.org/",
-      "iconPath": "https://www.google.com/s2/favicons?domain=ja.wikipedia.org&sz=48",
+      "iconPath": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAD8klEQVRoge1avU7jQBD+nKOjQDRZISEhKihXNFQIiSIrOqgwVQSN32BbrjMvYNFBh+QniMQL7CNYtFSGhoJ+5woYa23s9YZwBz4x0kpJPOudb+abHyeJ4BFrLfmu/ysZjUZR17V3F76L0V3SBFN7892NZ3FBVC+GYjwLg4iA4RnPMhqNotFXG7GoDB5ANFT6sAw+Aj8AvloGD2CJXxweHuLx8REAIITA6upqTfH5+bm6PplMcHl5iZ2dnSD9q6srPDw8IE3TVn3W7bsv621vb+P29vb1Q2stWWvJGENaa5JSUhRFrUsIQWmakjGGrLU0m80oSZKaDgACQFEUUZIklOc5WWupKArKsoyUUu/0lVKUZRkVRdF5X/d81rPWUgWAV1mWpLWujHA3l2VJTX1rLeV5TkKI2p40TVt1i6KoOSnLslY9ay2laVrpKaVaz38HgEHEcVwDEMdx50HWWtJa1yKgtW7Vc++tte50CjuGned6vRcAh9H1qpTSe5gxpubZrogZY0gIQVLKTqN4ZVlGADqj6QVQliUlSVJ5FADNZrOgKPjokaYpAahyw3e+UoqklFXOzQWgyW0AJKX0Hsr85qg1o8De7+JzkwE+KgYBYC+4UfB5oy0Kbvi5soR4P45jEkL0Rt0LgHnoGqSU6o2CEKJKaI6CMSaoGHCkQnV7AZRlWdGCV1/yNWu41jrYo5wnIZEKAuDSggH0eYaj4OYCN7YQh3GVCrEtCIBLC159SRjHca2x+Wp5G2V9DW5uAGyQC6DPm0VR1MYFXyd3F3s/RHcuAFwCQ0aLLtB9JTHP897G1VzB4/Tu7i7W1tYAAESEp6cn3NzcePesrKzU3t/d3eH+/r5T//r6GkIInJ2dhZqF4AhY+9pcXFr4Es2lUEgUjDEEICjRP0Qhl6MujbqSjenDA5nbR9qSmfVDEn0hADxg8WprbNyI2JtckfBWlZoc52iFNK6FAbhRwFt1aTYcpVQtyZsVqTmJcuOb1/sfBsATZduzAleSJrWaFYmvc+PqG1E+FQAfyrQQQlRDHo/AzRLLtOLFOjw29A2JnwrAWlt77MRb7eYu2jbD8PNFMwpSyuCx4VMBFEVRS2YhRO+s75ZhrmIIeLj5KwDanpujKPJOm7zHBT7P2PCpANp4HdKEmn0hdGjrWgt9M7e5uYnJZAIAGI/HODo66t2zv7+Pk5OTas/BwcEiJiz21eJ4PMb5+TmICNPpFEqpoD17e3sAgOl0iq2trUVMwK+Li4vfi9xgaWkJy8vLOD4+xvr6etCejY0NvLy84PT0NHhPlwz+B46fH/m+WgYP4P/4oZtlKCBa/2rA8t1BeP/s0ZTvAsb3d5s/gcFXczsllicAAAAASUVORK5CYII=",
       "group": "ウェブ",
       "tabPositions": {
         "col": 4,
@@ -63,7 +63,7 @@
     {
       "name": "GitHub",
       "path": "https://github.com/",
-      "iconPath": "https://www.google.com/s2/favicons?domain=github.com&sz=48",
+      "iconPath": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAb1BMVEX///8kKS74+PgsMTY+Q0f8/Pzw8PGRk5ZNUVXr6+xDSEzCxMUpLjLV1tYuMzc/Q0i3ubuUl5lbX2NTV1uLjpFKTlKxs7Xh4uOFh4rn5+h3en1vcnZ9gIPc3d6/wcJzd3o3PECmqKpjZ2rOz9CfoaRP5W5KAAABU0lEQVQ4jW1T7aKCIAzdEEUTSUuzLMtuvf8zXtiQVDx/lJ3DvgEIEPU9l1rL/F4LiFEMCQYkj2JDC6VxhaRJl3x2xgin7MePMuYRD7cQftrjrcL7ELk9nNt8yXXtyRm5mquzXADKA6LpzgZRlgBPZ1WO7yn/yrmqyGdGn95Zjav2hbNghZHMV3uNG3DZCigEmhRq+pmyrUAcifj4CO+49xciWqAe6p3pCJrNH1ATp5gH6KghQLrDnoB8GxaYPYFkhpONipjrl+wI61hQ8tB5EvYb4eTL5Ebhd8u/2f4EYfhvvWJpw9ZJ0LQfb5uxbMKi3pp5xVp30miexZHbRriHvUnojrKt7isXqWRBFQQNF2w3aYCPUl8/EREWzxtuE+pVI/wbkSGp0a51Nyg1F+L5/nel56xXgt+zcMgeC0FK27gdTzVoPXtI9DBuO2tRhJj94m3/A1GiDZXoM3d5AAAAAElFTkSuQmCC",
       "group": "ウェブ",
       "tabPositions": {
         "col": 0,
@@ -73,7 +73,7 @@
     {
       "name": "YouTube",
       "path": "https://www.youtube.com/",
-      "iconPath": "https://www.google.com/s2/favicons?domain=youtube.com&sz=48",
+      "iconPath": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACw0lEQVRoge3ZTYhVZRzH8c955pZjM4PToE4Utch04QsuroorcRO4CVxFLYSIVoFRYSsVN4NC4FsLQYogEEFFiIKUJIoWrbykoFGUbsJgphkxZkZHZ7rXxTlHb4MzSve598yF+4WHw3kWv/P7n8Nz+L8ktVpNOxOKNtAonQCKphNA0bR9AMmjNmvKi7EGq/A8BjGAXvRk1/7sWsJT2X5ONxbNkp3C3br7SUxnaxK3MJGtSdzEMG7gd1xNVO7MG0BNeT2GsC0ztpCYwXnsTVQu5ZsPAqgpv4kvpG9zITONtxKVk2QB1JQ34CcL33zONDYmKpfzQ3xA+5gn9ToESU15AKPmONALmBk8G7BJ+5kn/clsCFhdtJMGWBewomgXDfBKwPJocv190aSekMGApdHkDn3Ap3tYPhBN8jEsDVgWTS4E3tnOb2d57w1KXdGk5yDyF8jp7+PoLn4+ydZydPk6BoI08WoOa1fw/XFOHeDFwWY8oSdoRdL2+qv8epbdb9P9dEzlruC/aXDzeKaboXe5eobXtsRS7W19QfPyC3x1iHOfsPKlhuWKrcgiJDCtL1qu3+D9g3z9YxS5krR8a/45uD3F/s85eIKpe7FUx0vStLS5nL7AriP8ORxbuVrCHSyJrQyuXGPnx/xQaYo8JksYw3NRZW+Ns+84x84w829U6VmMlfB3NLlqlc++ZPcxRm5Gk52HkZK0nIzDh4fTt986RoO0eRSH1pqH4YDrrX5qRP4I+KVoFw1wJeAi2nHONIOLIVEZxXdFu/kfnE9UxvNk7iNpu65dmMYesmw06/bu0B5B5M3dy9Sl04nKKWzEN6gW421eqvgWm/PONHMPOHqxFiulA45l0uK/p24tQR+6pMOMxXUSjxpw3JUOOXJu4570ME7gH2lmnA84xjCCvzwccEzM9pp0Bt0F0wmgaDoBFE3bB3AfTLSiELIdNEEAAAAASUVORK5CYII=",
       "group": "ウェブ",
       "tabPositions": {
         "col": 1,
@@ -83,10 +83,20 @@
     {
       "name": "Qiita",
       "path": "https://qiita.com/",
-      "iconPath": "https://www.google.com/s2/favicons?domain=qiita.com&sz=48",
+      "iconPath": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAdVBMVEVHcEyW2XJqzSah3YDp+NvU8raI1Vlvziya3G/2/eu15Ziy5JTH666K1lr1/O2X2nDG7Kmi33vg9cac3W686J+o4Ijy/Od0zzv///9xzjWS2Gus4ZBxzTkAqABQxSFVxQBQxABTxQBkyiF2z0SE1FhszDNcxxIe8tzEAAAAHnRSTlMA/pnZRyjaIpwXirJ2sh/FZjoEZlDFMewO2uv38BFvWCADAAACoklEQVRIiY1W6dajIAzFWq1r3dqvyzdzDCC+/yNOgEAVtWfyox4xN8tNQsrYVvrkYuW683ErQ/xQYtQi5Oveflfuu0YAcM4NAJ8AU5kf65/fM1hdLwhR9QHkGvNQnTCy2DUvd9W1wBhv9QsFB+rGyeMc6FfzgT6FCdMaUcx8pYQMjUYTVKwIsYp/EQ/yMkcnlGgGGN85q60tSBf8SKNvLc1pRTTm1fuGjxM5h8YDYmtfYMlgqkI6MgLw2aVxNpWFgrXZq9SWs0lwLqbMespcuDA9zUH/NidA1clr3R0mF1GvAE6lswxRUtfpUz8OETbszTNITDXWAkjdzfm0qgdEeFZ+XJjmFdSbc4cvdVA/KFlya3wWOooBHAnIz00E/QQiTdvcn6rcc2rRoQM8jrNykXfH+oerS1U+qA1WgOnv1Yc9QsYS0kEG+ku104GQ/npiRn5iFwJDzbrsvgc4o4fWeYjYxZ0XrG+mXQDmlkgyKx2Azxd2HtotgAtTrBe5EB6gEl22eZt0ZAApODgBQGoAe4cuQFTLhuYqAISFg3lYTQBySSwRoC9H33s4HCDdzecAEU4bt8ElNBypQkUULlT6GSaXw8nnjyyRJLcMpeyS52fqXD/oiaBiYdG/CPUDF2i29dF9kcLNjPZqy8vnny8Aale465dy+XIUEt4oeKeMxmhO8alvLioppBzpLqv/I4s+SZJrRdTnkhD1QQJ9eFLYW5LDe2fX5DXfZufnWgyh+qAw3d8N4uG79E/5WQQ/Q2zXUrgdsIP8rOktaG77UyR1U5Hr8XU+QtDSwYWymA2+uOudpIc7UedWbtlgzfGak7cdfR0W34OAaI564FlMsA4M0x7T7kDdSJsqHFLzfwN/QMj7tw4zkncZMiqEmqJTcXmGn/8BgtqaRL/UVmAAAAAASUVORK5CYII=",
       "group": "ウェブ",
       "tabPositions": {
         "col": 2,
+        "row": 2
+      }
+    },
+    {
+      "name": "URLテキストコピーツール",
+      "path": "https://textcopy.pages.dev/#NoEwhgLgpgFADAGgAQE80oLYZCAlAXQChgB3AewCcBrcFGAWgEZl0VAXPQ0AhzEQU9MYwBuAkA",
+      "iconPath": "",
+      "group": "ウェブ",
+      "tabPositions": {
+        "col": 0,
         "row": 2
       }
     }

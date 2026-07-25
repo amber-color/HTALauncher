@@ -17,7 +17,6 @@
     SYSMENU="yes"
     VERSION="1.0"
     WINDOWSTATE="normal"
-    ALWAYSONTOP="yes"
 />
 <style>
 /* ===== リセット ===== */
@@ -494,8 +493,14 @@ function getDir() {
     if (p.charAt(0) === "\\") { p = p.substring(1); }
     return fso.GetParentFolderName(p);
 }
-var DIR     = getDir();
-var CFGPATH = DIR + "\\config.json";
+function getSelfPath() {
+    var p = location.pathname.replace(/\//g, "\\");
+    if (p.charAt(0) === "\\") { p = p.substring(1); }
+    return p;
+}
+var DIR      = getDir();
+var SELFPATH = getSelfPath();
+var CFGPATH  = DIR + "\\config.json";
 
 function readUtf8(path) {
     var st = new ActiveXObject("ADODB.Stream");
@@ -668,7 +673,7 @@ window.onload = function () {
     ge("s-topmost").onchange      = function () {
         cfg.settings.topmost = (this.value === "true");
         saveCfg();
-        if (cfg.settings.topmost) { applyTopmost(); }
+        applyTopmost(cfg.settings.topmost);
     };
     ge("s-cursor-trigger").onchange = function () {
         cfg.settings.cursorTriggerEnabled = (this.value === "true");
@@ -724,7 +729,7 @@ window.onload = function () {
     render();
     updViewBtns();
     positionToWindow();
-    if (cfg.settings.topmost) { applyTopmost(); }
+    if (cfg.settings.topmost) { applyTopmost(true); }
     if (cfg.settings.cursorTriggerEnabled) { startCursorTrigger(); }
 
     // 右クリックメニュー
@@ -805,6 +810,24 @@ window.onload = function () {
     document.onkeydown = function (e) {
         var ev  = e || window.event;
         var key = ev.keyCode;
+
+        // Ctrl+F: 既定の「検索」ダイアログを出さず、検索ボックスにフォーカスする。
+        // IE では preventDefault だけではブラウザ側のアクセラレータが動いてしまうため、
+        // keyCode を 0 に潰す（IE で古くから使われている打ち消し方）。
+        // モーダルより先に処理して、どの状態でも既定の検索が出ないようにする。
+        if (key === 70 && ev.ctrlKey && !ev.altKey) {
+            try { ev.keyCode = 0; } catch (eKc) {}
+            ev.returnValue = false;
+            if (ev.preventDefault) { ev.preventDefault(); }
+            if (!isAnyModalOpen()) {
+                var sbox = ge("search-box");
+                if (sbox) {
+                    sbox.focus();
+                    if (sbox.select) { sbox.select(); }  // 既存の入力は選択状態にして上書きしやすくする
+                }
+            }
+            return false;
+        }
 
         if (isAnyModalOpen()) { return; }
 
@@ -989,9 +1012,21 @@ function handleDropApp(e, dropCol, dropRow) {
             // URLドロップ: タイトルをfetchして直接追加（ダイアログなし）
             var href = httpMatch[1];
             var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
-            var urlTitle = fetchPageTitle(href) || href.replace(/^https?:\/\//, "").split("/")[0];
-            cfg.apps.push({ name: urlTitle, path: href, iconPath: faviconUrl(href) || "", group: dropGroup });
+            // まずホスト名を仮の表示名にして即追加し、タイトルは通信を待たずに
+            // 後から差し替える（同期取得だとここでアプリ全体が固まるため）
+            var hostName = href.replace(/^https?:\/\//, "").split("/")[0];
+            var newApp = { name: hostName, path: href, iconPath: "", group: dropGroup };
+            cfg.apps.push(newApp);
             added = true;
+            fetchPageTitleAsync(href, (function (a, provisional) {
+                return function (title) {
+                    if (!title || a.name !== provisional) { return; }
+                    a.name = title;
+                    saveCfg();
+                    // ドラッグ中の再描画は操作を壊すので避ける（次の描画で反映される）
+                    if (dragSrc < 0) { renderTabs(); render(); }
+                };
+            }(newApp, hostName)));
         } else {
             // URL以外: ファイルがある場合のみダイアログで補完（内部ドラッグは無視）
             var firstName = "";
@@ -1136,11 +1171,16 @@ function getGridBounds(list) {
     return { minCol: minC, maxCol: maxC, minRow: minR, maxRow: maxR };
 }
 
-// 占有マップから空き座標を探す（先頭から順に左→右→次の行）
+// 占有マップから空き座標を探す（先頭から順に左→右→次の行）。
+// 指定された座標が空いていればそこを使い、埋まっていれば左上から走査する。
+// 走査は設定の列数で折り返す。列数を超えて右へ伸ばすと表示範囲の外に
+// 置かれてしまい、横スクロールしないと見えなくなるため。
 function findFreePosNear(col, row, occ) {
     if (!occ[col + "," + row]) { occ[col + "," + row] = true; return { col: col, row: row }; }
+    var cols = cfg.settings.gridCols || 5;
+    if (cols < 1) { cols = 1; }
     for (var r = 0; ; r++) {
-        for (var c = 0; c < 1000; c++) {
+        for (var c = 0; c < cols; c++) {
             var k = c + "," + r;
             if (!occ[k]) { occ[k] = true; return { col: c, row: r }; }
         }
@@ -1224,25 +1264,33 @@ function faviconUrl(path) {
     return "https://www.google.com/s2/favicons?domain=" + m[1] + "&sz=48";
 }
 
-// URLのページタイトルを同期XHRで取得（取得できない場合はnull）
-function fetchPageTitle(url) {
-    var xhr;
-    try { xhr = new XMLHttpRequest(); }
-    catch(e1) {
-        try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch(e2) { xhr = null; }
-    }
-    if (!xhr) { return null; }
+// URLのページタイトルを非同期で取得する（取得できない場合は done(null)）。
+// 同期XHRだとページのHTMLを取り終わるまでアプリ全体が固まるため使わない。
+function fetchPageTitleAsync(url, done) {
+    var xhr = newHttp();
+    var finished = false;
+    function finish(v) { if (!finished) { finished = true; done(v); } }
+    if (!xhr) { finish(null); return; }
+
     try {
-        xhr.open("GET", url, false); // 同期
+        try { xhr.setTimeouts(5000, 5000, 5000, ICON_TIMEOUT_MS); } catch (eT) {}
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) { return; }
+            try {
+                if (xhr.status !== 200) { finish(null); return; }
+                var m = xhr.responseText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+                if (m && m[1]) {
+                    finish(m[1].replace(/\r?\n/g, " ").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, ""));
+                } else {
+                    finish(null);
+                }
+            } catch (eIn) { finish(null); }
+        };
+        xhr.open("GET", url, true);
         xhr.send();
-        if (xhr.status === 200) {
-            var m = xhr.responseText.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-            if (m && m[1]) {
-                return m[1].replace(/\r?\n/g, " ").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, "");
-            }
-        }
-    } catch(e) {}
-    return null;
+    } catch (eOut) { finish(null); return; }
+
+    setTimeout(function () { finish(null); }, ICON_TIMEOUT_MS + 2000);
 }
 
 // ===========================================================
@@ -1347,11 +1395,53 @@ function renderIconResults(icons) {
     }
 }
 
-function makeIconEl(app, size, radius) {
-    var col   = iconColor(app.name);
-    var init  = initial(app.name);
-    var fsize = Math.floor(size * 0.42) + "px";
+function isRemoteUrl(u) { return /^https?:\/\//i.test(u || ""); }
 
+// 「いますぐ描画に使える」アイコンの src（data URL かローカルパス）。無ければ null。
+// リモート URL は決してここから返さない。img.src にリモート URL を入れると
+// render() のたびにネットワークアクセスが発生し、通信が遅いときに
+// ドラッグなどの UI 操作が引っかかるため。
+function localIconSrc(app) {
+    var p = app.iconPath || "";
+    return (p && !isRemoteUrl(p)) ? p : null;
+}
+
+// このアイテムのアイコンとして取得すべきリモート URL。無ければ null。
+// - iconPath がリモート URL（アイコンピッカーで選んだ直後や旧 config）
+// - iconPath が空で path が http(s) → ファビコンサービス
+function remoteIconUrl(app) {
+    var p = app.iconPath || "";
+    if (isRemoteUrl(p)) { return p; }
+    if (!p) { return faviconUrl(app.path); }
+    return null;
+}
+
+// 頭文字＋背景色のタイルとして描く（アイコン未取得・取得失敗時の表示）
+function paintIconLetter(div, app, size) {
+    div.textContent      = initial(app.name);
+    div.style.background = iconColor(app.name);
+    div.style.color      = "#FFF";
+    div.style.fontWeight = "bold";
+    div.style.fontSize   = Math.floor(size * 0.42) + "px";
+}
+
+// 画像として描く。読み込みに失敗したら頭文字タイルに戻す
+function paintIconImage(div, src, app, size) {
+    div.textContent      = "";
+    div.style.background = "transparent";
+    var img = document.createElement("img");
+    img.style.width     = "100%";
+    img.style.height    = "100%";
+    img.style.objectFit = "contain";
+    img.onerror = function () {
+        if (img.parentNode) { img.parentNode.removeChild(img); }
+        paintIconLetter(div, app, size);
+    };
+    img.src = src;
+    div.appendChild(img);
+}
+
+function makeIconEl(app, size, radius) {
     var div = document.createElement("div");
     div.style.width          = size + "px";
     div.style.height         = size + "px";
@@ -1364,104 +1454,161 @@ function makeIconEl(app, size, radius) {
     div.style.overflow       = "hidden";
     div.style.flexShrink     = "0";
 
-    var src = app.iconPath || faviconUrl(app.path);
+    var src = localIconSrc(app);
     if (src) {
-        // 画像が使える場合: 背景なし、ロード失敗時だけ頭文字+背景色にフォールバック
-        div.style.background = "transparent";
-        var img = document.createElement("img");
-        img.style.width     = "100%";
-        img.style.height    = "100%";
-        img.style.objectFit = "contain";
-        img.onerror = (function (d) {
-            return function () {
-                if (img.parentNode) { img.parentNode.removeChild(img); }
-                d.style.background = col;
-                d.style.color      = "#FFF";
-                d.style.fontWeight = "bold";
-                d.style.fontSize   = fsize;
-                d.textContent      = init;
-            };
-        }(div));
-        img.onload = (function (capturedApp, capturedSrc) {
-            return function () { cacheIcon(capturedApp, this, capturedSrc); };
-        }(app, src));
-        img.src = src;
-        div.appendChild(img);
+        paintIconImage(div, src, app, size);
     } else {
-        // アイコンなし: 頭文字 + 背景色
-        div.style.background = col;
-        div.style.color      = "#FFF";
-        div.style.fontWeight = "bold";
-        div.style.fontSize   = fsize;
-        div.textContent      = init;
+        // まだ手元に画像が無い: 頭文字タイルを即座に出しておき、
+        // リモートから取るべきものがあれば取得キューに積む（描画はブロックしない）
+        paintIconLetter(div, app, size);
+        var rurl = remoteIconUrl(app);
+        if (rurl) { queueIconFetch(app, rurl, div, size); }
     }
     return div;
 }
 
 // ===========================================================
-// アイコン URL → base64 data URL キャッシュ
+// リモートアイコンの取得キュー
+//
+// 描画とネットワークを切り離すための仕組み。render() は検索の1文字ごとや
+// タブ切替のたびに走るため、そこから直接リモート画像を読ませると未完了の
+// リクエストが積み上がり、ドラッグなどの操作が引っかかる。そこで
+//  - 同じ URL は 1 セッションにつき 1 回しか取りに行かない
+//  - 同時実行は 1 件だけに直列化する
+//  - 取得できたら data URL にして config.json に焼き込み、次回起動以降は通信しない
 // ===========================================================
-var _iconCacheTimer = null;
+var ICON_TIMEOUT_MS = 10000;
 
-function updateIconCache(app, dataUrl) {
-    app.iconPath = dataUrl;
-    if (_iconCacheTimer) { clearTimeout(_iconCacheTimer); }
-    _iconCacheTimer = setTimeout(function () {
-        _iconCacheTimer = null;
+var iconState   = {};    // url -> "pending" | "done" | "failed"
+var iconWaiters = {};    // url -> [{ el, app, size }] 取得できたら差し替える要素
+var iconQueue   = [];    // 未処理の url
+var iconBusy    = false;
+var _iconSaveTimer = null;
+
+// WinHTTP ベースの ServerXMLHTTP を優先する。ファビコンサービス
+// (www.google.com/s2/favicons) は t1.gstatic.com へ 301 リダイレクトするが、
+// MSXML2.XMLHTTP は別ホストへのリダイレクトを "Access is denied" で拒否するため
+// 取得できない。ServerXMLHTTP は追従する。
+function newHttp() {
+    try { return new ActiveXObject("MSXML2.ServerXMLHTTP.6.0"); } catch (e1) {}
+    try { return new ActiveXObject("MSXML2.ServerXMLHTTP");     } catch (e2) {}
+    try { return new ActiveXObject("MSXML2.XMLHTTP.6.0");       } catch (e3) {}
+    return null;
+}
+
+function scheduleIconSave() {
+    if (_iconSaveTimer) { clearTimeout(_iconSaveTimer); }
+    _iconSaveTimer = setTimeout(function () {
+        _iconSaveTimer = null;
         saveCfg();
     }, 1000);
 }
 
-function cacheIcon(app, imgEl, src) {
-    if (!src || src.indexOf("data:") === 0) { return; }
-    if (src.indexOf("http") !== 0)          { return; }
+function queueIconFetch(app, url, el, size) {
+    var st = iconState[url];
+    if (st === "failed") { return; }
+    if (!iconWaiters[url]) { iconWaiters[url] = []; }
+    iconWaiters[url].push({ el: el, app: app, size: size });
+    if (st === "pending" || st === "done") { return; }
+    iconState[url] = "pending";
+    iconQueue.push(url);
+    pumpIconQueue();
+}
 
-    // Canvas 方式（プライマリ）
-    try {
-        var canvas = document.createElement("canvas");
-        canvas.width  = imgEl.naturalWidth  || imgEl.width  || 48;
-        canvas.height = imgEl.naturalHeight || imgEl.height || 48;
-        canvas.getContext("2d").drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-        var dataUrl = canvas.toDataURL("image/png");
-        if (dataUrl && dataUrl.length > 6 && dataUrl !== "data:,") {
-            updateIconCache(app, dataUrl);
-            return;
+function pumpIconQueue() {
+    if (iconBusy || iconQueue.length === 0) { return; }
+    var url = iconQueue.shift();
+    iconBusy = true;
+    fetchBinaryAsync(url, function (dataUrl) {
+        iconBusy = false;
+        if (dataUrl) {
+            onIconFetched(url, dataUrl);
+        } else {
+            iconState[url] = "failed";   // 次回起動時にまた試す（configには残さない）
+            delete iconWaiters[url];
         }
-    } catch (eCanvas) {}
+        setTimeout(pumpIconQueue, 0);
+    });
+}
 
-    // MSXML2.XMLHTTP + ADODB.Stream 方式（CORS 汚染時フォールバック）
-    try {
-        var xhr = null;
-        try { xhr = new ActiveXObject("MSXML2.XMLHTTP.6.0"); } catch (e1) {
-            try { xhr = new ActiveXObject("MSXML2.XMLHTTP"); }  catch (e2) {}
+function onIconFetched(url, dataUrl) {
+    iconState[url] = "done";
+
+    // 同じ URL を使うアイテムすべてに反映する（まだ描画されていないものも含む）
+    var hit = false;
+    for (var i = 0; i < cfg.apps.length; i++) {
+        if (remoteIconUrl(cfg.apps[i]) === url) { cfg.apps[i].iconPath = dataUrl; hit = true; }
+    }
+    if (hit) { scheduleIconSave(); }
+
+    // 画面に出ている該当アイコンだけ差し替える。
+    // ここで render() を呼ぶと、ドラッグ中だった場合に DOM が作り直されて
+    // ドラッグ操作そのものが壊れるため、要素単位で更新する。
+    var ws = iconWaiters[url] || [];
+    for (var j = 0; j < ws.length; j++) {
+        if (ws[j].el && ws[j].el.parentNode) {
+            paintIconImage(ws[j].el, dataUrl, ws[j].app, ws[j].size);
         }
-        if (!xhr) { return; }
+    }
+    delete iconWaiters[url];
+}
 
+// バイナリを取得して data URL にする。失敗時は done(null)。
+function fetchBinaryAsync(url, done) {
+    var xhr = newHttp();
+    var finished = false;
+    function finish(v) { if (!finished) { finished = true; done(v); } }
+    if (!xhr) { finish(null); return; }
+
+    try {
+        // 解決/接続/送信/受信のタイムアウト（ServerXMLHTTP のみ）
+        try { xhr.setTimeouts(5000, 5000, 5000, ICON_TIMEOUT_MS); } catch (eT) {}
         xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4 || xhr.status !== 200) { return; }
+            if (xhr.readyState !== 4) { return; }
             try {
-                var ct = xhr.getResponseHeader("Content-Type") || "";
-                var mime;
-                if      (ct.indexOf("svg")  >= 0) { mime = "image/svg+xml"; }
-                else if (ct.indexOf("png")  >= 0) { mime = "image/png"; }
-                else if (ct.indexOf("gif")  >= 0) { mime = "image/gif"; }
-                else if (ct.indexOf("jpeg") >= 0 || ct.indexOf("jpg") >= 0) { mime = "image/jpeg"; }
-                else if (/\.svg(\?|$)/i.test(src))   { mime = "image/svg+xml"; }
-                else if (/\.gif(\?|$)/i.test(src))   { mime = "image/gif"; }
-                else if (/\.jpe?g(\?|$)/i.test(src)) { mime = "image/jpeg"; }
-                else                                  { mime = "image/png"; }
-
-                var st = new ActiveXObject("ADODB.Stream");
-                st.Type = 1; st.Open(); st.Write(xhr.responseBody);
-                st.Position = 0; st.Type = 2; st.Charset = "iso-8859-1";
-                var dataUrl = "data:" + mime + ";base64," + btoa(st.ReadText());
-                st.Close();
-                updateIconCache(app, dataUrl);
-            } catch (eInner) {}
+                if (xhr.status !== 200) { finish(null); return; }
+                finish(binaryToDataUrl(xhr, url));
+            } catch (eIn) { finish(null); }
         };
-        xhr.open("GET", src, true);
+        xhr.open("GET", url, true);
         xhr.send();
-    } catch (eOuter) {}
+    } catch (eOut) { finish(null); return; }
+
+    // setTimeouts が効かない実装のときの保険
+    setTimeout(function () { finish(null); }, ICON_TIMEOUT_MS + 2000);
+}
+
+// バイト配列（responseBody 等）を base64 にする。
+// ADODB.Stream で iso-8859-1 として読んで btoa() する方法は使えない。
+// ADODB の "iso-8859-1" は実際には Windows-1252 として解釈され、
+// バイト 0x80-0x9F が U+00FF を超える文字（€ や ' 等）に化けるため、
+// btoa() が InvalidCharacterError を投げる。PNG では必ずこれを踏む
+// （SVG のようにASCIIしか含まないデータだけ偶然通っていた）。
+function bytesToBase64(bytes) {
+    var dom = null;
+    try { dom = new ActiveXObject("MSXML2.DOMDocument.6.0"); }
+    catch (e1) { dom = new ActiveXObject("MSXML2.DOMDocument"); }
+    var el = dom.createElement("b");
+    el.dataType = "bin.base64";
+    el.nodeTypedValue = bytes;
+    return String(el.text).replace(/[\r\n]/g, "");
+}
+
+function binaryToDataUrl(xhr, url) {
+    var ct = xhr.getResponseHeader("Content-Type") || "";
+    var mime;
+    if      (ct.indexOf("svg")  >= 0) { mime = "image/svg+xml"; }
+    else if (ct.indexOf("png")  >= 0) { mime = "image/png"; }
+    else if (ct.indexOf("gif")  >= 0) { mime = "image/gif"; }
+    else if (ct.indexOf("jpeg") >= 0 || ct.indexOf("jpg") >= 0) { mime = "image/jpeg"; }
+    else if (/\.svg(\?|$)/i.test(url))   { mime = "image/svg+xml"; }
+    else if (/\.gif(\?|$)/i.test(url))   { mime = "image/gif"; }
+    else if (/\.jpe?g(\?|$)/i.test(url)) { mime = "image/jpeg"; }
+    else                                 { mime = "image/png"; }
+
+    var b64 = bytesToBase64(xhr.responseBody);
+    if (!b64) { return null; }
+    return "data:" + mime + ";base64," + b64;
 }
 
 // ===========================================================
@@ -1917,17 +2064,9 @@ function renderAppList() {
 
             var tdIcon = document.createElement("td");
             tdIcon.className = "icon-col";
-            if (app.iconPath || app.path) {
-                var iconUrl = app.iconPath || faviconUrl(app.path);
-                if (iconUrl) {
-                    var img = document.createElement("img");
-                    img.src = iconUrl;
-                    img.style.width = "20px";
-                    img.style.height = "20px";
-                    img.style.objectFit = "contain";
-                    tdIcon.appendChild(img);
-                }
-            }
+            // グリッドと同じく、ここでもリモート URL は直接描画しない
+            // （設定画面を開くたびに通信が走らないようにする）
+            tdIcon.appendChild(makeIconEl(app, 20, "3px"));
             var td1 = document.createElement("td"); td1.textContent = app.name  || "";
             var td2 = document.createElement("td"); td2.textContent = app.group || "";
             var td3 = document.createElement("td");
@@ -2128,9 +2267,9 @@ function dlgSave() {
         alert("\u8868\u793a\u540d\u3068\u30d1\u30b9\u306f\u5fc5\u9808\u3067\u3059\u3002");
         return;
     }
-    if (!icon && path.match(/^https?:\/\//)) {
-        icon = faviconUrl(path);
-    }
+    // アイコン未指定でURLの場合は iconPath を空のままにしておく。
+    // 描画時に remoteIconUrl() がファビコンを導出し、取得できたら data URL として
+    // 保存されるので、config にリモート URL を書き込む必要はない。
     var obj = { name: name, path: path, iconPath: icon, group: group };
     if (dlgIdx < 0) {
         cfg.apps.push(obj);
@@ -2196,25 +2335,262 @@ function positionToWindow() {
 }
 
 // ===========================================================
-// 最前面表示
-// TopMost.ps1 を非表示 PowerShell で起動する
-// TopMost.ps1 が "HTML Application Host Window Class" で HTA を特定し SetWindowPos する
+// PowerShell 連携
+// Win32 API を叩く必要のある処理（最前面化・カーソル位置トリガー）は
+// PowerShell に任せるが、スクリプトは外部 .ps1 ファイルではなく
+// このファイル末尾の <script type="text/powershell"> に原文のまま置き、
+// -EncodedCommand で起動する。HTALauncher.hta 単体で完結させるため。
 // ===========================================================
-function applyTopmost() {
-    var ps1Path = DIR + "\\TopMost.ps1";
-    wsh.Run('powershell -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + ps1Path + '"', 0, false);
+
+// PowerShell の -EncodedCommand は UTF-16LE の Base64。
+// ADODB.Stream で UTF-16LE のバイト列にし、MSXML の bin.base64 で符号化する。
+function toB64Utf16(text) {
+    var st = new ActiveXObject("ADODB.Stream");
+    st.Type = 2; st.Charset = "utf-16le"; st.Open(); st.WriteText(text);
+    st.Position = 0;
+    st.Type = 1;
+    st.Position = 2; // 先頭2バイトの BOM を飛ばす
+    var bin = st.Read();
+    st.Close();
+    return bytesToBase64(bin);
+}
+
+// PowerShell のシングルクォート文字列に埋め込むためのエスケープ
+function psq(s) { return String(s).replace(/'/g, "''"); }
+
+// 埋め込みスクリプトを取り出し、プレースホルダを差し替えて非表示起動する。
+// -EncodedCommand を使うのはコマンドラインのクォート処理を一切考えずに済むため。
+// 置換は split/join で行う（RegExp だと置換値の $ や \ が特別扱いされるため）。
+function runPs(scriptId, vars) {
+    var src = document.getElementById(scriptId).text;
+    for (var k in vars) { src = src.split(k).join(vars[k]); }
+    wsh.Run('powershell -NoProfile -NoLogo -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ' + toB64Utf16(src), 0, false);
+}
+
+// ===========================================================
+// 最前面表示
+// "HTML Application Host Window Class" で自分の窓を特定し SetWindowPos する。
+// HTA:APPLICATION の ALWAYSONTOP 属性は実行時に変更できないため使わない
+// （属性を付けると「しない」を選んでも解除できない）。
+// ===========================================================
+function applyTopmost(on) {
+    runPs("ps-topmost", { "__TOPMOST__": on ? "$true" : "$false" });
 }
 
 // ===========================================================
 // カーソル位置トリガー
-// CursorTrigger.hta を非表示起動する
-// （多重起動は CursorTrigger.hta 側の CursorTriggerGuard.ps1 が防止する）
+// 常駐 PowerShell を 1 本立ち上げ、GetCursorPos でカーソル位置を監視させる。
+// トリガー用の極小ウィンドウを画面端に置く方式と違い、他の窓に遮蔽されて
+// 反応しなくなることがない。多重起動は常駐側の名前付き Mutex が防ぐ。
 // ===========================================================
 function startCursorTrigger() {
-    var htaPath = DIR + "\\CursorTrigger.hta";
-    wsh.Run('mshta.exe "' + htaPath + '"', 0, false);
+    runPs("ps-cursor-watcher", {
+        "__CFGPATH__": psq(CFGPATH),
+        "__HTAPATH__": psq(SELFPATH)
+    });
 }
 
+</script>
+
+<!--
+  以下は PowerShell のソース。type が未知のため IE は実行せず、
+  JScript から .text で原文のまま取り出せる（エスケープ不要）。
+-->
+<script type="text/powershell" id="ps-topmost">
+$title = 'HTALauncher'
+$topmost = __TOPMOST__
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class HtaTopmost {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+}
+'@
+
+$HWND_TOPMOST   = [IntPtr](-1)
+$HWND_NOTOPMOST = [IntPtr](-2)
+$SWP_NOSIZE = 0x0001
+$SWP_NOMOVE = 0x0002
+
+# 起動直後に呼ばれた場合はまだ窓が存在しないことがあるためリトライする
+$hwnd = [IntPtr]::Zero
+for ($i = 0; $i -lt 50; $i++) {
+    $hwnd = [HtaTopmost]::FindWindow('HTML Application Host Window Class', $title)
+    if ($hwnd -ne [IntPtr]::Zero) { break }
+    Start-Sleep -Milliseconds 100
+}
+
+if ($hwnd -ne [IntPtr]::Zero) {
+    $insertAfter = if ($topmost) { $HWND_TOPMOST } else { $HWND_NOTOPMOST }
+    [HtaTopmost]::SetWindowPos($hwnd, $insertAfter, 0, 0, 0, 0, $SWP_NOMOVE -bor $SWP_NOSIZE) | Out-Null
+}
+</script>
+
+<script type="text/powershell" id="ps-cursor-watcher">
+$cfgPath = '__CFGPATH__'
+$htaPath = '__HTAPATH__'
+$title   = 'HTALauncher'
+
+# 多重起動防止。HTALauncher を再起動しても、設定を ON/OFF し直しても
+# 常駐は 1 本に保たれる（ロックファイルと違い後始末も不要）。
+$created = $false
+$mutex = New-Object System.Threading.Mutex($true, 'Local\HTALauncherCursorWatcher', [ref]$created)
+if (-not $created) { exit 0 }
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class HtaWin {
+    [StructLayout(LayoutKind.Sequential)] public struct POINT { public int X; public int Y; }
+    [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT lpPoint);
+    [DllImport("user32.dll")]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, out RECT pvParam, uint fWinIni);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+}
+'@
+
+$SW_RESTORE = 9
+$SPI_GETWORKAREA = 0x0030
+$THICKNESS = 4
+
+# トリガー領域を作業領域（タスクバーを除いた範囲）から求める。
+# 解像度やタスクバーの変更に追従できるよう毎回計算し直す。
+function Get-TriggerZone($pos) {
+    $wa = New-Object 'HtaWin+RECT'
+    if (-not [HtaWin]::SystemParametersInfo($SPI_GETWORKAREA, 0, [ref]$wa, 0)) { return $null }
+    $x0 = $wa.Left
+    $y0 = $wa.Top
+    $sw = $wa.Right - $wa.Left
+    $sh = $wa.Bottom - $wa.Top
+    $t  = $THICKNESS
+    # 各要素は必ず括弧で括る。PowerShell では , が - より優先度が高いため、
+    # @($x0 + $sw - $t, $y0, ...) は「$sw から配列を引く」と解釈されてしまう。
+    $r = ($x0 + $sw - $t)  # 右端に寄せた x
+    $b = ($y0 + $sh - $t)  # 下端に寄せた y
+    switch ($pos) {
+        'topLeft'     { return @($x0, $y0, $t,  $t)  }
+        'topRight'    { return @($r,  $y0, $t,  $t)  }
+        'bottomLeft'  { return @($x0, $b,  $t,  $t)  }
+        'bottomRight' { return @($r,  $b,  $t,  $t)  }
+        'top'         { return @($x0, $y0, $sw, $t)  }
+        'bottom'      { return @($x0, $b,  $sw, $t)  }
+        'left'        { return @($x0, $y0, $t,  $sh) }
+        'right'       { return @($r,  $y0, $t,  $sh) }
+        default       { return @($r,  $b,  $t,  $t)  }
+    }
+}
+
+# マウスのホバーはクリックと違い OS のフォアグラウンド権限を伴わないため、
+# 単純な ShowWindow/SetForegroundWindow は Windows のフォアグラウンドロックで
+# 無視される。現在のフォアグラウンドスレッドの入力キューに自スレッドを一時的に
+# 接続してから操作することでこれを回避する（AutoHotkey 等でも使われる正規の手段）。
+function Invoke-Activate {
+    $hwnd = [HtaWin]::FindWindow('HTML Application Host Window Class', $title)
+    if ($hwnd -ne [IntPtr]::Zero) {
+        $fgWnd = [HtaWin]::GetForegroundWindow()
+        $fgProcId = 0
+        $fgThreadId = [HtaWin]::GetWindowThreadProcessId($fgWnd, [ref]$fgProcId)
+        $curThreadId = [HtaWin]::GetCurrentThreadId()
+
+        $attached = $false
+        if ($fgThreadId -ne 0 -and $fgThreadId -ne $curThreadId) {
+            $attached = [HtaWin]::AttachThreadInput($curThreadId, $fgThreadId, $true)
+        }
+        try {
+            [HtaWin]::ShowWindow($hwnd, $SW_RESTORE) | Out-Null
+            [HtaWin]::SetForegroundWindow($hwnd) | Out-Null
+        } finally {
+            if ($attached) {
+                [HtaWin]::AttachThreadInput($curThreadId, $fgThreadId, $false) | Out-Null
+            }
+        }
+    } elseif ($htaPath -ne '') {
+        Start-Process 'mshta.exe' -ArgumentList ('"' + $htaPath + '"')
+    }
+}
+
+$pos  = $null
+$zone = $null
+$lastCfgCheck = [int64](-10000)
+$lastFire     = [int64](-10000)
+$lastWrite    = [DateTime]::MinValue
+# 起動直後にカーソルがゾーン内にあってもいきなり発火しないよう内側扱いから始める
+$wasInside = $true
+
+# 常駐し続けるループなので、1周あたりのコストを抑える:
+#  - 時刻は Get-Date（コマンドレット呼び出し）ではなく Stopwatch のカウンタで見る
+#  - 待機は Start-Sleep ではなく Thread::Sleep
+#  - POINT は毎回 New-Object せず使い回す
+#  - config.json は更新時刻が変わったときだけ読み直す（毎秒 ConvertFrom-Json
+#    すると、それだけで常駐プロセスの CPU の大半を占めてしまう）
+$clock = [Diagnostics.Stopwatch]::StartNew()
+$pt = New-Object 'HtaWin+POINT'
+
+try {
+    while ($true) {
+        $ms = $clock.ElapsedMilliseconds
+
+        if (($ms - $lastCfgCheck) -ge 1000) {
+            $lastCfgCheck = $ms
+            if (-not [IO.File]::Exists($cfgPath)) { break }
+            $stamp = [IO.File]::GetLastWriteTimeUtc($cfgPath)
+            if ($stamp -ne $lastWrite) {
+                $cfg = $null
+                try { $cfg = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { $cfg = $null }
+                # 読み込み失敗は HTALauncher 側の書き込みとの競合の可能性があるため、
+                # 無効化されたとはみなさず設定を据え置き、次回もう一度試す
+                if ($cfg -ne $null) {
+                    $lastWrite = $stamp
+                    if (-not $cfg.settings -or -not $cfg.settings.cursorTriggerEnabled) { break }
+                    $newPos = $cfg.settings.cursorTriggerPosition
+                    if ($newPos -ne $pos) {
+                        $pos = $newPos
+                        $wasInside = $true
+                    }
+                }
+            }
+            # 領域の計算そのものは安価なので、解像度やタスクバーの変更に
+            # 追従できるよう設定が変わっていなくても毎回やり直す
+            if ($pos -ne $null) { $zone = Get-TriggerZone $pos }
+        }
+
+        if ($zone -ne $null -and [HtaWin]::GetCursorPos([ref]$pt)) {
+            $inside = ($pt.X -ge $zone[0]) -and ($pt.X -lt ($zone[0] + $zone[2])) -and
+                      ($pt.Y -ge $zone[1]) -and ($pt.Y -lt ($zone[1] + $zone[3]))
+            # 外→内に入った瞬間だけ発火させる（滞在中の連射防止）
+            if ($inside -and -not $wasInside -and ($ms - $lastFire) -ge 1500) {
+                $lastFire = $ms
+                Invoke-Activate
+            }
+            $wasInside = $inside
+        }
+
+        [System.Threading.Thread]::Sleep(50)
+    }
+} finally {
+    $mutex.ReleaseMutex()
+    $mutex.Dispose()
+}
 </script>
 </body>
 </html>
