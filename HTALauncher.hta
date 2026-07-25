@@ -330,6 +330,13 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
             <option value="right">右端</option>
           </select>
         </div>
+        <div class="srow">
+          <span class="slbl">カーソルが外れたら最小化</span>
+          <select id="s-auto-minimize">
+            <option value="false">しない</option>
+            <option value="true">する</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -543,7 +550,8 @@ var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
                                       startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false,
-                                      cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight" } };
+                                      cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight",
+                                      autoMinimizeOnLeave: false } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -563,6 +571,7 @@ var cfg = (function() {
             if (!s.launchAction || ["close", "minimize", "none"].indexOf(s.launchAction) < 0) { s.launchAction = "minimize"; }
             if (typeof s.topmost !== "boolean") { s.topmost = false; }
             if (typeof s.cursorTriggerEnabled !== "boolean") { s.cursorTriggerEnabled = false; }
+            if (typeof s.autoMinimizeOnLeave !== "boolean") { s.autoMinimizeOnLeave = false; }
             if (!s.cursorTriggerPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "top", "bottom", "left", "right"].indexOf(s.cursorTriggerPosition) < 0) { s.cursorTriggerPosition = "bottomRight"; }
             // tabPositions 旧フォーマット移行: {"group": {col,row}} → {col,row}
             for (var mi = 0; mi < c.apps.length; mi++) {
@@ -678,11 +687,16 @@ window.onload = function () {
     ge("s-cursor-trigger").onchange = function () {
         cfg.settings.cursorTriggerEnabled = (this.value === "true");
         saveCfg();
-        if (cfg.settings.cursorTriggerEnabled) { startCursorTrigger(); }
+        if (cfg.settings.cursorTriggerEnabled) { startWatcher(); }
     };
     ge("s-cursor-position").onchange = function () {
         cfg.settings.cursorTriggerPosition = this.value;
         saveCfg();
+    };
+    ge("s-auto-minimize").onchange = function () {
+        cfg.settings.autoMinimizeOnLeave = (this.value === "true");
+        saveCfg();
+        if (cfg.settings.autoMinimizeOnLeave) { startWatcher(); }
     };
 
     // 外観タブ：変更即保存
@@ -730,7 +744,7 @@ window.onload = function () {
     updViewBtns();
     positionToWindow();
     if (cfg.settings.topmost) { applyTopmost(true); }
-    if (cfg.settings.cursorTriggerEnabled) { startCursorTrigger(); }
+    if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave) { startWatcher(); }
 
     // 右クリックメニュー
     ge("menu-edit").onclick = function () {
@@ -2030,6 +2044,7 @@ function openSettings() {
     ge("s-topmost").value        = cfg.settings.topmost ? "true" : "false";
     ge("s-cursor-trigger").value = cfg.settings.cursorTriggerEnabled ? "true" : "false";
     ge("s-cursor-position").value = cfg.settings.cursorTriggerPosition || "bottomRight";
+    ge("s-auto-minimize").value  = cfg.settings.autoMinimizeOnLeave ? "true" : "false";
     renderAppList();
     selIdx = -1;
     ge("settings").className = "open";
@@ -2378,12 +2393,14 @@ function applyTopmost(on) {
 }
 
 // ===========================================================
-// カーソル位置トリガー
-// 常駐 PowerShell を 1 本立ち上げ、GetCursorPos でカーソル位置を監視させる。
+// カーソル監視の常駐プロセス
+// PowerShell を 1 本立ち上げ、GetCursorPos でカーソル位置を監視させる。
+// 「カーソル位置で起動」と「カーソルが外れたら最小化」の両方をこれ 1 本が担う
+// （どちらか一方でも ON なら常駐し、両方 OFF になったら自分で終了する）。
 // トリガー用の極小ウィンドウを画面端に置く方式と違い、他の窓に遮蔽されて
 // 反応しなくなることがない。多重起動は常駐側の名前付き Mutex が防ぐ。
 // ===========================================================
-function startCursorTrigger() {
+function startWatcher() {
     runPs("ps-cursor-watcher", {
         "__CFGPATH__": psq(CFGPATH),
         "__HTAPATH__": psq(SELFPATH)
@@ -2457,6 +2474,10 @@ public class HtaWin {
     [DllImport("user32.dll")]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    [DllImport("user32.dll")]
+    public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
@@ -2470,8 +2491,12 @@ public class HtaWin {
 '@
 
 $SW_RESTORE = 9
+$SW_MINIMIZE = 6
 $SPI_GETWORKAREA = 0x0030
 $THICKNESS = 4
+# ウィンドウから出てすぐに最小化すると、端をかすめただけで消えて使いにくい。
+# この時間だけ外に居続けたら最小化する。
+$LEAVE_DWELL_MS = 400
 
 # トリガー領域を作業領域（タスクバーを除いた範囲）から求める。
 # 解像度やタスクバーの変更に追従できるよう毎回計算し直す。
@@ -2529,8 +2554,57 @@ function Invoke-Activate {
     }
 }
 
+# カーソルがウィンドウから外れたら最小化する。
+# 判定にはクライアント領域ではなくウィンドウ矩形（タイトルバー・枠を含む）を使う。
+# HTA 側の mouseleave だと、閉じるボタンに手を伸ばした瞬間やタイトルバーを
+# 掴んだ瞬間に「外に出た」と判定されてしまうため。
+function Update-AutoMinimize($p, $ms) {
+    $hwnd = [HtaWin]::FindWindow('HTML Application Host Window Class', $title)
+    if ($hwnd -eq [IntPtr]::Zero -or [HtaWin]::IsIconic($hwnd)) {
+        # 未起動 or 最小化中。次に復帰したとき、カーソルが窓の外にあっても
+        # すぐ最小化し直さないように武装解除しておく
+        $script:armed = $false
+        $script:leftAt = 0
+        return
+    }
+
+    # フォルダ参照やファイル選択などのダイアログは自分のウィンドウ矩形の外に出る。
+    # 同じプロセスの別ウィンドウが前面にある間は最小化しない。
+    $fg = [HtaWin]::GetForegroundWindow()
+    if ($fg -ne [IntPtr]::Zero -and $fg -ne $hwnd) {
+        $fgPid = 0; [HtaWin]::GetWindowThreadProcessId($fg, [ref]$fgPid) | Out-Null
+        $myPid = 0; [HtaWin]::GetWindowThreadProcessId($hwnd, [ref]$myPid) | Out-Null
+        if ($fgPid -ne 0 -and $fgPid -eq $myPid) { $script:leftAt = 0; return }
+    }
+
+    $r = New-Object 'HtaWin+RECT'
+    if (-not [HtaWin]::GetWindowRect($hwnd, [ref]$r)) { return }
+    $inWin = ($p.X -ge $r.Left) -and ($p.X -lt $r.Right) -and
+             ($p.Y -ge $r.Top)  -and ($p.Y -lt $r.Bottom)
+
+    if ($inWin) {
+        # 一度ウィンドウ内に入って初めて武装する。
+        # 起動直後や復帰直後にカーソルが画面外・窓外にあっても即最小化しないため。
+        $script:armed = $true
+        $script:leftAt = 0
+        return
+    }
+
+    if (-not $script:armed) { return }
+    if ($script:leftAt -eq 0) { $script:leftAt = $ms; return }
+    if (($ms - $script:leftAt) -ge $LEAVE_DWELL_MS) {
+        [HtaWin]::ShowWindow($hwnd, $SW_MINIMIZE) | Out-Null
+        $script:armed = $false
+        $script:leftAt = 0
+    }
+}
+
 $pos  = $null
 $zone = $null
+$triggerOn = $false
+$autoMinOn = $false
+$armed     = $false      # 一度ウィンドウ内にカーソルが入ったか
+$leftAt    = [int64]0    # ウィンドウ外に出た時刻（0 = 外に出ていない）
 $lastCfgCheck = [int64](-10000)
 $lastFire     = [int64](-10000)
 $lastWrite    = [DateTime]::MinValue
@@ -2561,7 +2635,11 @@ try {
                 # 無効化されたとはみなさず設定を据え置き、次回もう一度試す
                 if ($cfg -ne $null) {
                     $lastWrite = $stamp
-                    if (-not $cfg.settings -or -not $cfg.settings.cursorTriggerEnabled) { break }
+                    if (-not $cfg.settings) { break }
+                    $triggerOn = [bool]$cfg.settings.cursorTriggerEnabled
+                    $autoMinOn = [bool]$cfg.settings.autoMinimizeOnLeave
+                    # 両方 OFF になったら常駐している意味がないので終了する
+                    if (-not $triggerOn -and -not $autoMinOn) { break }
                     $newPos = $cfg.settings.cursorTriggerPosition
                     if ($newPos -ne $pos) {
                         $pos = $newPos
@@ -2574,15 +2652,21 @@ try {
             if ($pos -ne $null) { $zone = Get-TriggerZone $pos }
         }
 
-        if ($zone -ne $null -and [HtaWin]::GetCursorPos([ref]$pt)) {
-            $inside = ($pt.X -ge $zone[0]) -and ($pt.X -lt ($zone[0] + $zone[2])) -and
-                      ($pt.Y -ge $zone[1]) -and ($pt.Y -lt ($zone[1] + $zone[3]))
-            # 外→内に入った瞬間だけ発火させる（滞在中の連射防止）
-            if ($inside -and -not $wasInside -and ($ms - $lastFire) -ge 1500) {
-                $lastFire = $ms
-                Invoke-Activate
+        if ([HtaWin]::GetCursorPos([ref]$pt)) {
+            # カーソル位置トリガー（最小化からの復帰・未起動なら新規起動）
+            if ($triggerOn -and $zone -ne $null) {
+                $inside = ($pt.X -ge $zone[0]) -and ($pt.X -lt ($zone[0] + $zone[2])) -and
+                          ($pt.Y -ge $zone[1]) -and ($pt.Y -lt ($zone[1] + $zone[3]))
+                # 外→内に入った瞬間だけ発火させる（滞在中の連射防止）
+                if ($inside -and -not $wasInside -and ($ms - $lastFire) -ge 1500) {
+                    $lastFire = $ms
+                    Invoke-Activate
+                }
+                $wasInside = $inside
             }
-            $wasInside = $inside
+
+            # カーソルが外れたら最小化
+            if ($autoMinOn) { Update-AutoMinimize $pt $ms }
         }
 
         [System.Threading.Thread]::Sleep(50)

@@ -107,14 +107,15 @@
     "gridCellWidth": 72,
     "gridCols": 5,
     "gridRows": 6,
-    "windowPosition": "topRight",
+    "windowPosition": "topLeft",
     "fontSize": "medium",
     "listRowHeight": 30,
     "startTab": "last",
-    "lastTab": "ウェブ",
+    "lastTab": "ツール",
     "launchAction": "minimize",
     "topmost": true,
     "cursorTriggerEnabled": true,
-    "cursorTriggerPosition": "topRight"
+    "cursorTriggerPosition": "topLeft",
+    "autoMinimizeOnLeave": true
   }
 }
