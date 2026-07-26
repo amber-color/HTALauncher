@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { $_.CommandLine -match 'ActivateWatcher' } | Select-Object ProcessId, ParentProcessId, CreationDate, CommandLine | Format-List)",
-      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | Where-Object { $_.CommandLine -match 'ActivateWatcher\\\\.ps1' -and $_.CommandLine -match 'triggerFlagPath' } | Select-Object ProcessId, CreationDate)"
-    ]
-  }
-}
