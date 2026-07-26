@@ -138,8 +138,9 @@ body.dark  .sbtn { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; 
 body.light .sbtn { background: #F0F0F0; color: #1E1E1E; border: 1px solid #CCC; }
 body.dark  .sbtn:hover { background: #505050; }
 body.light .sbtn:hover { background: #E0E0E0; }
-.sbtn.pri { background: #0078D7; color: #FFF; border-color: #0078D7; }
-.sbtn.pri:hover { background: #006CBF; }
+/* body 付きで書かないと body.dark/.light .sbtn に詳細度で負けて色が付かない */
+body.dark  .sbtn.pri, body.light .sbtn.pri { background: #0078D7; color: #FFF; border-color: #0078D7; }
+body.dark  .sbtn.pri:hover, body.light .sbtn.pri:hover { background: #006CBF; }
 
 #app-tbl { width: 100%; border-collapse: collapse; table-layout: fixed;}
 #app-tbl th { text-align: left; padding: 3px 8px; font-size: 0.846em; }
@@ -163,6 +164,17 @@ body.light .slbl { color: #333; }
 .srow select { -ms-flex: 1; flex: 1; height: 26px; padding: 0 6px; font-family: inherit; font-size: inherit; }
 body.dark  .srow select { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
 body.light .srow select { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+.srow input.skey { -ms-flex: 1; flex: 1; height: 26px; padding: 0 6px; font-family: inherit; font-size: inherit; text-align: center; cursor: pointer; }
+body.dark  .srow input.skey { background: #3A3A3A; color: #D2D2D2; border: 1px solid #555; }
+body.light .srow input.skey { background: #FFF;    color: #1E1E1E; border: 1px solid #CCC; }
+body.dark  .srow input.skey:focus { border-color: #4A9EFF; }
+body.light .srow input.skey:focus { border-color: #4A9EFF; }
+.shint { -ms-flex: 1; flex: 1; font-size: 90%; }
+body.dark  .shint { color: #999; }
+body.light .shint { color: #777; }
+/* body.dark .shint より詳細度を下げると勝てないので、こちらも body 付きで書く */
+body.dark  .shint.err { color: #FF8A75; }
+body.light .shint.err { color: #C0392B; }
 
 /* ===== Windows アイコンピッカー ===== */
 #iconpicker-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 30;
@@ -225,6 +237,29 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
 
 .dlg-btns { display: -ms-flexbox; display: flex; -ms-flex-pack: end; justify-content: flex-end; margin-top: 14px; }
 .dlg-btns .sbtn { margin-left: 8px; }
+
+/* ===== メッセージ / 確認ダイアログ =====
+   ネイティブの alert / confirm は画面中央に出てしまい、HTALauncher の窓と
+   位置がずれる。同じ場所に出すため自前のモーダルに置き換えている。
+   右クリックメニュー(1000)より手前に出す。 */
+#msg-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 2000;
+          display: none; -ms-flex-align: center; align-items: center;
+          -ms-flex-pack: center; justify-content: center;
+          padding: 16px; background: rgba(0,0,0,.55); }
+#msg-ov.open { display: -ms-flexbox; display: flex; }
+
+#msg-box { max-width: 340px; padding: 18px 20px; border-radius: 4px; }
+body.dark  #msg-box { background: #2D2D2D; border: 1px solid #555; }
+body.light #msg-box { background: #FFF;    border: 1px solid #CCC; }
+
+/* pre-wrap でメッセージ中の \n をそのまま改行として見せる */
+#msg-text { white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
+body.dark  #msg-text { color: #D2D2D2; }
+body.light #msg-text { color: #1E1E1E; }
+
+/* 窓が狭いとボタンが並びきらないので折り返せるようにしておく */
+#msg-btns { -ms-flex-wrap: wrap; flex-wrap: wrap; }
+#msg-btns .sbtn { margin-top: 6px; }
 </style>
 </head>
 <body class="dark">
@@ -337,6 +372,21 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
             <option value="true">する</option>
           </select>
         </div>
+        <div class="srow">
+          <span class="slbl">ショートカットで呼び出す</span>
+          <select id="s-hotkey-enabled">
+            <option value="false">しない</option>
+            <option value="true">する</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">ショートカットキー</span>
+          <input type="text" id="s-hotkey-key" class="skey" readonly>
+        </div>
+        <div class="srow">
+          <span class="slbl"></span>
+          <span id="s-hotkey-msg" class="shint"></span>
+        </div>
       </div>
     </div>
 
@@ -430,6 +480,14 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
   </div>
 </div>
 
+<!-- メッセージ / 確認ダイアログ（ボタンは showMsg() が組み立てる） -->
+<div id="msg-ov">
+  <div id="msg-box">
+    <div id="msg-text"></div>
+    <div class="dlg-btns" id="msg-btns"></div>
+  </div>
+</div>
+
 <!-- Windows アイコンピッカー -->
 <div id="iconpicker-ov">
   <div id="iconpicker-box">
@@ -508,6 +566,13 @@ function getSelfPath() {
 var DIR      = getDir();
 var SELFPATH = getSelfPath();
 var CFGPATH  = DIR + "\\config.json";
+// 作業用ファイルはアプリのフォルダではなく %TEMP% に置いて、配布物や作業ツリーを汚さない
+var TMPDIR = wsh.ExpandEnvironmentStrings("%TEMP%");
+// ホットキー登録の成否を常駐 PowerShell から受け取るための一時ファイル
+var HKSTATPATH = TMPDIR + "\\HTALauncherHotkey.status";
+// モーダル表示中であることを常駐 PowerShell に伝えるための一時ファイル。
+// これがある間は「カーソルが外れたら最小化」を抑止してもらう
+var MODALFLAGPATH = TMPDIR + "\\HTALauncherModal.flag";
 
 function readUtf8(path) {
     var st = new ActiveXObject("ADODB.Stream");
@@ -544,6 +609,49 @@ function readUnicode(path) {
 }
 
 // ===========================================================
+// ショートカットキー（グローバルホットキー）
+// ===========================================================
+// IE の keydown で得られる keyCode は Win32 の仮想キーコードと同じ値なので、
+// 捕捉した keyCode をそのまま config に保存し、常駐 PowerShell の
+// RegisterHotKey にも変換なしで渡せる。以下の表は表示用ラベルのためだけのもの。
+var VK_NAMES = {
+    8: "Backspace", 9: "Tab", 13: "Enter", 19: "Pause", 20: "CapsLock", 27: "Esc",
+    32: "Space", 33: "PageUp", 34: "PageDown", 35: "End", 36: "Home",
+    37: "←", 38: "↑", 39: "→", 40: "↓",
+    45: "Insert", 46: "Delete",
+    // テンキー
+    96: "Num0", 97: "Num1", 98: "Num2", 99: "Num3", 100: "Num4", 101: "Num5",
+    102: "Num6", 103: "Num7", 104: "Num8", 105: "Num9",
+    106: "Num*", 107: "Num+", 109: "Num-", 110: "Num.", 111: "Num/",
+    // 記号キー（JIS 配列の刻印に合わせている）
+    186: ":", 187: ";", 188: ",", 189: "-", 190: ".", 191: "/",
+    192: "@", 219: "[", 220: "\\", 221: "]", 222: "^", 226: "\\(ろ)"
+};
+
+function vkName(vk) {
+    if (vk >= 48 && vk <= 57)  { return String.fromCharCode(vk); }          // 0-9
+    if (vk >= 65 && vk <= 90)  { return String.fromCharCode(vk); }          // A-Z
+    if (vk >= 112 && vk <= 123) { return "F" + (vk - 111); }                // F1-F12
+    return VK_NAMES[vk] || ("VK" + vk);
+}
+
+function hotkeyLabel(hk) {
+    var p = [];
+    if (hk.ctrl)  { p.push("Ctrl"); }
+    if (hk.alt)   { p.push("Alt"); }
+    if (hk.shift) { p.push("Shift"); }
+    p.push(vkName(hk.vk));
+    return p.join(" + ");
+}
+
+// 既定は Ctrl+Alt+Space。Windows 標準のショートカットと衝突せず、
+// ランチャーの呼び出しキーとしても一般的な組み合わせ。
+// （Alt+Space 単体はウィンドウのシステムメニューに予約されているので使えない）
+function defHotkey() {
+    return { ctrl: true, alt: true, shift: false, vk: 32, label: "Ctrl + Alt + Space" };
+}
+
+// ===========================================================
 // 設定読み込み
 // ===========================================================
 var cfg = (function() {
@@ -551,7 +659,8 @@ var cfg = (function() {
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
                                       startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false,
                                       cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight",
-                                      autoMinimizeOnLeave: false } };
+                                      autoMinimizeOnLeave: false,
+                                      hotkeyEnabled: false, hotkey: defHotkey() } };
     try {
         if (fso.FileExists(CFGPATH)) {
             var c = JSON.parse(readUtf8(CFGPATH));
@@ -573,6 +682,17 @@ var cfg = (function() {
             if (typeof s.cursorTriggerEnabled !== "boolean") { s.cursorTriggerEnabled = false; }
             if (typeof s.autoMinimizeOnLeave !== "boolean") { s.autoMinimizeOnLeave = false; }
             if (!s.cursorTriggerPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "top", "bottom", "left", "right"].indexOf(s.cursorTriggerPosition) < 0) { s.cursorTriggerPosition = "bottomRight"; }
+            if (typeof s.hotkeyEnabled !== "boolean") { s.hotkeyEnabled = false; }
+            // Ctrl と Alt がどちらも無い組み合わせは受け付けない。
+            // 修飾なし（や Shift 単独）を登録すると、そのキーの通常入力を
+            // システム全体から奪ってしまうため。
+            if (!s.hotkey || typeof s.hotkey.vk !== "number" || s.hotkey.vk <= 0
+                || (!s.hotkey.ctrl && !s.hotkey.alt)) {
+                s.hotkey = defHotkey();
+            } else {
+                s.hotkey = { ctrl: !!s.hotkey.ctrl, alt: !!s.hotkey.alt, shift: !!s.hotkey.shift, vk: s.hotkey.vk };
+                s.hotkey.label = hotkeyLabel(s.hotkey);
+            }
             // tabPositions 旧フォーマット移行: {"group": {col,row}} → {col,row}
             for (var mi = 0; mi < c.apps.length; mi++) {
                 var mtp = c.apps[mi].tabPositions;
@@ -698,6 +818,56 @@ window.onload = function () {
         saveCfg();
         if (cfg.settings.autoMinimizeOnLeave) { startWatcher(); }
     };
+    ge("s-hotkey-enabled").onchange = function () {
+        cfg.settings.hotkeyEnabled = (this.value === "true");
+        saveCfg();
+        if (cfg.settings.hotkeyEnabled) { startWatcher(); }
+        scheduleHotkeyStatus();
+    };
+    ge("s-hotkey-key").onfocus = function () {
+        this.value = "キーを押してください…";
+    };
+    ge("s-hotkey-key").onblur = function () {
+        this.value = cfg.settings.hotkey.label;
+    };
+    ge("s-hotkey-key").onkeydown = function (e) {
+        var ev = e || window.event;
+        var k  = ev.keyCode;
+
+        // IE のアクセラレータ（Ctrl+F の検索など）が横取りしないよう、
+        // keyCode を潰したうえで既定動作を止める。document.onkeydown 側にも
+        // この入力欄を素通りさせるガードを入れてある。
+        try { ev.keyCode = 0; } catch (eKc) {}
+        ev.returnValue = false;
+        if (ev.preventDefault) { ev.preventDefault(); }
+
+        // 修飾キー単体は確定させない（押している途中なので）
+        if (k === 16 || k === 17 || k === 18 || k === 91 || k === 92) { return false; }
+
+        // Esc は取り消して元の値に戻す
+        if (k === 27) {
+            this.blur();
+            return false;
+        }
+
+        // Ctrl も Alt も無い組み合わせを登録すると、そのキーの通常入力を
+        // システム全体から奪ってしまう
+        if (!ev.ctrlKey && !ev.altKey) {
+            var msg = ge("s-hotkey-msg");
+            msg.className = "shint err";
+            msg.innerHTML = "Ctrl または Alt を含めてください。";
+            return false;
+        }
+
+        var hk = { ctrl: !!ev.ctrlKey, alt: !!ev.altKey, shift: !!ev.shiftKey, vk: k };
+        hk.label = hotkeyLabel(hk);
+        cfg.settings.hotkey = hk;
+        saveCfg();
+        this.value = hk.label;
+        this.blur();
+        scheduleHotkeyStatus();
+        return false;
+    };
 
     // 外観タブ：変更即保存
     ge("s-theme").onchange    = function () { cfg.settings.theme       = this.value; saveCfg(); applyTheme(this.value); };
@@ -735,7 +905,7 @@ window.onload = function () {
 
     // アイコンピッカー
     ge("d-icon-win").onclick      = function () { openIconPicker(); };
-    ge("ipc-close").onclick       = function () { ge("iconpicker-ov").className = ""; };
+    ge("ipc-close").onclick       = function () { setOverlay("iconpicker-ov", false); };
     ge("ipc-search-btn").onclick  = function () { searchIcons(); };
     ge("ipc-q").onkeydown         = function (e) { if ((e || window.event).keyCode === 13) { searchIcons(); } };
 
@@ -744,7 +914,9 @@ window.onload = function () {
     updViewBtns();
     positionToWindow();
     if (cfg.settings.topmost) { applyTopmost(true); }
-    if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave) { startWatcher(); }
+    // 前回の異常終了でフラグが残っていると自動最小化が効かないままになる
+    clearModalFlag();
+    if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave || cfg.settings.hotkeyEnabled) { startWatcher(); }
 
     // 右クリックメニュー
     ge("menu-edit").onclick = function () {
@@ -755,14 +927,15 @@ window.onload = function () {
     };
     ge("menu-delete").onclick = function () {
         ge("context-menu").style.display = "none";
-        if (contextTargetIdx >= 0) {
-            if (confirm('"' + cfg.apps[contextTargetIdx].name + '" を削除しますか？')) {
-                cfg.apps.splice(contextTargetIdx, 1);
-                saveCfg();
-                renderTabs();
-                render();
-            }
-        }
+        if (contextTargetIdx < 0) { return; }
+        // 応答を待つ間に contextTargetIdx が書き換わりうるので控えておく
+        var delIdx = contextTargetIdx;
+        msgConfirm('"' + cfg.apps[delIdx].name + '" を削除しますか？', function () {
+            cfg.apps.splice(delIdx, 1);
+            saveCfg();
+            renderTabs();
+            render();
+        });
     };
     ge("menu-add").onclick = function () {
         ge("bg-context-menu").style.display = "none";
@@ -824,6 +997,24 @@ window.onload = function () {
     document.onkeydown = function (e) {
         var ev  = e || window.event;
         var key = ev.keyCode;
+
+        // ショートカットキーの捕捉中は、どのキーも文書側で解釈しない。
+        // 下の INPUT 除外だけでは Ctrl+F の処理のほうが先に走ってしまい、
+        // Ctrl+F を登録しようとすると検索ボックスへフォーカスが飛んでしまう。
+        var capTgt = ev.target || ev.srcElement;
+        if (capTgt && capTgt.id === "s-hotkey-key") { return; }
+
+        // メッセージ/確認モーダルが開いている間は、Esc でキャンセルする以外は
+        // 何もしない（Tab と Enter はボタン側の既定動作に任せる）
+        if (ge("msg-ov").className === "open") {
+            if (key === 27) {
+                msgClose(null);
+                ev.returnValue = false;
+                if (ev.preventDefault) { ev.preventDefault(); }
+                return false;
+            }
+            return;
+        }
 
         // Ctrl+F: 既定の「検索」ダイアログを出さず、検索ボックスにフォーカスする。
         // IE では preventDefault だけではブラウザ側のアクセラレータが動いてしまうため、
@@ -938,6 +1129,8 @@ window.onload = function () {
 
 window.onbeforeunload = function () {
     try { saveCfg(); } catch (e) {}
+    // 残したままだと自動最小化が効かなくなるので必ず消す
+    clearModalFlag();
 };
 
 // ge() 省略形
@@ -946,7 +1139,96 @@ function ge(id) { return document.getElementById(id); }
 function isAnyModalOpen() {
     return ge("dlg-ov").className       === "open" ||
            ge("iconpicker-ov").className === "open" ||
-           ge("settings").className      === "open";
+           ge("settings").className      === "open" ||
+           ge("msg-ov").className        === "open";
+}
+
+// ===========================================================
+// モーダル表示中フラグ
+// 追加/編集ダイアログや設定を開いている間は、参照ボタンやファイル選択で
+// HTALauncher の枠の外を操作することがある。常駐ウォッチャーは HTA の中の
+// モーダルを知りようがない（別ウィンドウではないので GetWindowRect では
+// 判別できない）ため、開いている間だけ目印のファイルを置いて伝える。
+// ===========================================================
+var modalFlagOn = false;
+
+// 入れ子でも正しく働くよう、開いた/閉じたを個別に渡さず
+// isAnyModalOpen() から状態を作り直す
+function syncModalFlag() {
+    var on = isAnyModalOpen();
+    if (on === modalFlagOn) { return; }
+    modalFlagOn = on;
+    try {
+        if (on) { writeUtf8(MODALFLAGPATH, "1"); }
+        else    { clearModalFlag(); }
+    } catch (e) {}
+}
+
+function clearModalFlag() {
+    modalFlagOn = false;
+    try { if (fso.FileExists(MODALFLAGPATH)) { fso.DeleteFile(MODALFLAGPATH); } } catch (e) {}
+}
+
+// モーダルの表示/非表示は必ずここを通す。className を直接書き換えると
+// フラグの更新を書き漏らし、最小化が止まらない/止まったままになるため。
+function setOverlay(id, open) {
+    ge(id).className = open ? "open" : "";
+    syncModalFlag();
+}
+
+// ===========================================================
+// メッセージ / 確認ダイアログ
+// ネイティブの alert / confirm は HTALauncher の窓ではなく画面中央に出るため、
+// 視線が飛んでしまう。見た目も位置も揃うよう自前のモーダルに置き換える。
+// ネイティブと違い戻り値では返せないので、選択はコールバックで受け取る。
+// ===========================================================
+var msgPick      = null;   // 選択結果を渡すコールバック
+var msgPrevFocus = null;   // モーダルを開く直前にフォーカスがあった要素
+
+// buttons: [{ label: 表示名, value: コールバックに渡す値, pri: 既定ボタンなら true }, ...]
+function showMsg(text, buttons, onPick) {
+    ge("msg-text").textContent = text;
+    var box = ge("msg-btns");
+    box.innerHTML = "";
+    var def = null;
+    for (var i = 0; i < buttons.length; i++) {
+        (function (b) {
+            var btn = document.createElement("button");
+            btn.className   = "sbtn" + (b.pri ? " pri" : "");
+            btn.textContent = b.label;
+            btn.onclick     = function () { msgClose(b.value); };
+            box.appendChild(btn);
+            if (b.pri) { def = btn; }
+        }(buttons[i]));
+    }
+    msgPick = onPick || null;
+    try { msgPrevFocus = document.activeElement; } catch (e) { msgPrevFocus = null; }
+    setOverlay("msg-ov", true);
+    // 既定ボタンにフォーカスを当てておくと、そのまま Enter で決定できる
+    if (!def) { def = box.firstChild; }
+    if (def) { def.focus(); }
+}
+
+// value が null のときはキャンセル扱いで、コールバックを呼ばずに閉じる
+// （Esc で閉じた場合がこれにあたる）
+function msgClose(value) {
+    setOverlay("msg-ov", false);
+    var cb = msgPick;
+    msgPick = null;
+    // 再描画でフォーカス先が消えていることがあるので保険をかける
+    try { if (msgPrevFocus && msgPrevFocus.focus) { msgPrevFocus.focus(); } } catch (e) {}
+    msgPrevFocus = null;
+    if (cb && value !== null) { cb(value); }
+}
+
+function msgAlert(text) {
+    showMsg(text, [{ label: "OK", value: true, pri: true }], null);
+}
+
+function msgConfirm(text, onYes) {
+    showMsg(text,
+            [{ label: "はい", value: true, pri: true }, { label: "いいえ", value: false }],
+            function (v) { if (v) { onYes(); } });
 }
 
 // フォルダ選択ダイアログ（Shell.Application.BrowseForFolder）
@@ -1314,7 +1596,7 @@ function openIconPicker() {
     ge("ipc-q").value = "";
     ge("ipc-status").innerHTML = "\u30ad\u30fc\u30ef\u30fc\u30c9\u3092\u5165\u529b\u3057\u3066\u691c\u7d22\u3057\u3066\u304f\u3060\u3055\u3044";
     ge("ipc-grid").innerHTML   = "";
-    ge("iconpicker-ov").className = "open";
+    setOverlay("iconpicker-ov", true);
     ge("ipc-q").focus();
 }
 
@@ -1402,7 +1684,7 @@ function renderIconResults(icons) {
                 if (prev) { prev.className = "ipcell"; }
                 cell.className = "ipcell selected";
                 ge("d-icon").value = saveUrl;
-                ge("iconpicker-ov").className = "";
+                setOverlay("iconpicker-ov", false);
             };
             grid.appendChild(cell);
         }(icons[i]));
@@ -1894,22 +2176,23 @@ function renderGrid(ct, list) {
                         return;
                     }
 
-                    if (dragSrc < 0 || dragSrc === tgtIdx) { dragSrc = -1; return; }
-                    var srcName = cfg.apps[dragSrc] ? cfg.apps[dragSrc].name : "?";
-                    if (!confirm('"' + srcName + '" \u3092 "' + tgtApp.name + '" \u306e\u524d\u306b\u79fb\u52d5\u3057\u307e\u3059\u304b\uff1f')) {
-                        dragSrc = -1; return;
-                    }
-                    var moved = cfg.apps.splice(dragSrc, 1)[0];
-                    var ni = -1;
-                    for (var k = 0; k < cfg.apps.length; k++) {
-                        if (cfg.apps[k] === tgtApp) { ni = k; break; }
-                    }
-                    if (ni < 0) { ni = cfg.apps.length; }
-                    cfg.apps.splice(ni, 0, moved);
+                    // \u78ba\u8a8d\u306e\u5fdc\u7b54\u3092\u5f85\u3064\u9593\u30c9\u30e9\u30c3\u30b0\u72b6\u614b\u3092\u6301\u3061\u8d8a\u3055\u306a\u3044\u3088\u3046\u3001\u5148\u306b\u7247\u4ed8\u3051\u308b
+                    var src = dragSrc;
                     dragSrc = -1;
-                    saveCfg();
-                    renderTabs();
-                    render();
+                    if (src < 0 || src === tgtIdx) { return; }
+                    var srcName = cfg.apps[src] ? cfg.apps[src].name : "?";
+                    msgConfirm('"' + srcName + '" \u3092 "' + tgtApp.name + '" \u306e\u524d\u306b\u79fb\u52d5\u3057\u307e\u3059\u304b\uff1f', function () {
+                        var moved = cfg.apps.splice(src, 1)[0];
+                        var ni = -1;
+                        for (var k = 0; k < cfg.apps.length; k++) {
+                            if (cfg.apps[k] === tgtApp) { ni = k; break; }
+                        }
+                        if (ni < 0) { ni = cfg.apps.length; }
+                        cfg.apps.splice(ni, 0, moved);
+                        saveCfg();
+                        renderTabs();
+                        render();
+                    });
                 };
             }(origI, app, cell));
 
@@ -2009,7 +2292,13 @@ function launch(app) {
             if (action === "close") { window.close(); }
         }
     } catch (e) {
-        alert("\u8d77\u52d5\u5931\u6557: " + app.name + "\n" + e.message);
+        // "minimize" \u306e\u3068\u304d\u306f\u65e2\u306b\u7a93\u3092\u5f15\u3063\u8fbc\u3081\u305f\u5f8c\u306a\u306e\u3067\u3001\u305d\u306e\u307e\u307e\u3067\u306f
+        // \u30e2\u30fc\u30c0\u30eb\u304c\u898b\u3048\u306a\u3044\u3002\u5fa9\u5e30\u3055\u305b\u3066\u304b\u3089\u51fa\u3059
+        if (action === "minimize") { restoreWindow(); }
+        // ActiveX \u7531\u6765\u306e\u4f8b\u5916\u306f message \u304c\u7a7a\u3067 description \u5074\u306b\u5165\u308b\u3053\u3068\u304c\u3042\u308b\u3002
+        // \u3069\u3061\u3089\u3082\u7121\u3051\u308c\u3070\u7a7a\u884c\u3060\u3051\u304c\u6b8b\u3089\u306a\u3044\u3088\u3046\u7406\u7531\u306e\u884c\u3054\u3068\u7701\u304f
+        var reason = e.message || e.description || "";
+        msgAlert("\u8d77\u52d5\u5931\u6557: " + app.name + (reason ? "\n" + reason : ""));
     }
 }
 
@@ -2045,14 +2334,17 @@ function openSettings() {
     ge("s-cursor-trigger").value = cfg.settings.cursorTriggerEnabled ? "true" : "false";
     ge("s-cursor-position").value = cfg.settings.cursorTriggerPosition || "bottomRight";
     ge("s-auto-minimize").value  = cfg.settings.autoMinimizeOnLeave ? "true" : "false";
+    ge("s-hotkey-enabled").value = cfg.settings.hotkeyEnabled ? "true" : "false";
+    ge("s-hotkey-key").value     = cfg.settings.hotkey.label;
+    updateHotkeyStatus();
     renderAppList();
     selIdx = -1;
-    ge("settings").className = "open";
+    setOverlay("settings", true);
     switchTab("apps");
 }
 
 function closeSettings() {
-    ge("settings").className = "";
+    setOverlay("settings", false);
     renderTabs();
     render();
 }
@@ -2110,14 +2402,16 @@ function renderAppList() {
 
 function appDel() {
     if (selIdx < 0 || selIdx >= cfg.apps.length) {
-        alert("\u524a\u9664\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
+        msgAlert("\u524a\u9664\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
         return;
     }
-    if (!confirm('"' + cfg.apps[selIdx].name + '" \u3092\u524a\u9664\u3057\u307e\u3059\u304b\uff1f')) { return; }
-    cfg.apps.splice(selIdx, 1);
-    selIdx = Math.min(selIdx, cfg.apps.length - 1);
-    saveCfg();
-    renderAppList();
+    var delIdx = selIdx;
+    msgConfirm('"' + cfg.apps[delIdx].name + '" \u3092\u524a\u9664\u3057\u307e\u3059\u304b\uff1f', function () {
+        cfg.apps.splice(delIdx, 1);
+        selIdx = Math.min(delIdx, cfg.apps.length - 1);
+        saveCfg();
+        renderAppList();
+    });
 }
 
 function appMove(dir) {
@@ -2137,10 +2431,17 @@ function appMove(dir) {
 var claunchImportMode = "";
 
 function claunchImportClick() {
-    if (!confirm("CLaunch.ini を取り込みます。\n\nOK = 続ける　　キャンセル = 中止")) { return; }
-    var replace = confirm("既存データの扱いを選択してください。\n\nOK = 既存を削除して取り込む\nキャンセル = 既存を残して追加する");
-    claunchImportMode = replace ? "replace" : "append";
-    ge("claunch-ini-picker").click();
+    msgConfirm("CLaunch.ini を取り込みます。よろしいですか？", function () {
+        showMsg("既存データの扱いを選択してください。\n\n"
+                + "入れ替え = 今の一覧を削除して取り込む\n"
+                + "追加 = 今の一覧を残して取り込む",
+                [{ label: "入れ替え", value: "replace", pri: true },
+                 { label: "追加",     value: "append" }],
+                function (mode) {
+                    claunchImportMode = mode;
+                    ge("claunch-ini-picker").click();
+                });
+    });
 }
 
 function claunchImportLoad(input) {
@@ -2159,9 +2460,9 @@ function claunchImportLoad(input) {
         renderAppList();
         renderTabs();
         render();
-        alert(items.length + " 件を取り込みました。");
+        msgAlert(items.length + " 件を取り込みました。");
     } catch (e) {
-        alert("取込に失敗しました: " + e.message);
+        msgAlert("取込に失敗しました: " + e.message);
     }
 }
 
@@ -2249,7 +2550,7 @@ function parseCLaunchIni(path) {
 
 function dlgOpenSel() {
     if (selIdx < 0 || selIdx >= cfg.apps.length) {
-        alert("\u7de8\u96c6\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
+        msgAlert("\u7de8\u96c6\u3059\u308b\u30a2\u30d7\u30ea\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
         return;
     }
     dlgOpen(selIdx);
@@ -2268,7 +2569,7 @@ function dlgOpen(idx) {
     ge("d-path").value  = app ? (app.path      || "") : "";
     ge("d-group").value = app ? (app.group     || "") : (curTab !== "すべて" ? curTab : "");
     ge("d-icon").value  = app ? (app.iconPath  || "") : "";
-    ge("dlg-ov").className = "open";
+    setOverlay("dlg-ov", true);
     ge("d-name").focus();
 }
 
@@ -2279,7 +2580,7 @@ function dlgSave() {
     var icon  = trim(ge("d-icon").value);
 
     if (!name || !path) {
-        alert("\u8868\u793a\u540d\u3068\u30d1\u30b9\u306f\u5fc5\u9808\u3067\u3059\u3002");
+        msgAlert("\u8868\u793a\u540d\u3068\u30d1\u30b9\u306f\u5fc5\u9808\u3067\u3059\u3002");
         return;
     }
     // アイコン未指定でURLの場合は iconPath を空のままにしておく。
@@ -2305,7 +2606,7 @@ function dlgSave() {
 }
 
 function dlgClose() {
-    ge("dlg-ov").className = "";
+    setOverlay("dlg-ov", false);
 }
 
 function trim(s) {
@@ -2351,35 +2652,31 @@ function positionToWindow() {
 
 // ===========================================================
 // PowerShell 連携
-// Win32 API を叩く必要のある処理（最前面化・カーソル位置トリガー）は
-// PowerShell に任せるが、スクリプトは外部 .ps1 ファイルではなく
-// このファイル末尾の <script type="text/powershell"> に原文のまま置き、
-// -EncodedCommand で起動する。HTALauncher.hta 単体で完結させるため。
+// Win32 API を叩く必要のある処理（最前面化・カーソル位置トリガー・
+// ショートカットキー）は PowerShell に任せるが、スクリプトは配布物として
+// 別ファイルにはせず、このファイル末尾の <script type="text/powershell"> に
+// 原文のまま置く。HTALauncher.hta 単体で完結させるため。
 // ===========================================================
-
-// PowerShell の -EncodedCommand は UTF-16LE の Base64。
-// ADODB.Stream で UTF-16LE のバイト列にし、MSXML の bin.base64 で符号化する。
-function toB64Utf16(text) {
-    var st = new ActiveXObject("ADODB.Stream");
-    st.Type = 2; st.Charset = "utf-16le"; st.Open(); st.WriteText(text);
-    st.Position = 0;
-    st.Type = 1;
-    st.Position = 2; // 先頭2バイトの BOM を飛ばす
-    var bin = st.Read();
-    st.Close();
-    return bytesToBase64(bin);
-}
 
 // PowerShell のシングルクォート文字列に埋め込むためのエスケープ
 function psq(s) { return String(s).replace(/'/g, "''"); }
 
 // 埋め込みスクリプトを取り出し、プレースホルダを差し替えて非表示起動する。
-// -EncodedCommand を使うのはコマンドラインのクォート処理を一切考えずに済むため。
 // 置換は split/join で行う（RegExp だと置換値の $ や \ が特別扱いされるため）。
+//
+// スクリプトは %TEMP% に書き出して -File で渡す。-EncodedCommand だと
+// コマンドライン全体が 32767 文字の上限に掛かるため（Base64 は UTF-16 の
+// バイト列を符号化するので、元のスクリプトの約 2.7 倍に膨らむ）。
+// スクリプト ID ごとに固定の名前を使うので、ファイルが増え続けることはない。
+// HTA 自体は 1 ファイルのままで、この .ps1 は実行のたびに作り直される。
 function runPs(scriptId, vars) {
     var src = document.getElementById(scriptId).text;
     for (var k in vars) { src = src.split(k).join(vars[k]); }
-    wsh.Run('powershell -NoProfile -NoLogo -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ' + toB64Utf16(src), 0, false);
+    var path = TMPDIR + "\\HTALauncher_" + scriptId + ".ps1";
+    // BOM 付き UTF-8 で書く。BOM が無いと PowerShell 5.1 は
+    // システムの ANSI コードページとみなし、日本語コメントが化ける
+    writeUtf8(path, src);
+    wsh.Run('powershell -NoProfile -NoLogo -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + path + '"', 0, false);
 }
 
 // ===========================================================
@@ -2393,6 +2690,17 @@ function applyTopmost(on) {
 }
 
 // ===========================================================
+// 最小化状態からの復帰
+// 「アイテム選択後の動作 = 最小化する」で起動に失敗したときに使う。
+// 自前のモーダルは窓の中に描くので、最小化したままでは見えないため。
+// wsh.AppActivate では最小化された窓は元に戻せない（フォーカスが移るだけ）
+// ので、ここも PowerShell から ShowWindow(SW_RESTORE) を呼ぶ。
+// ===========================================================
+function restoreWindow() {
+    try { runPs("ps-restore", {}); } catch (e) {}
+}
+
+// ===========================================================
 // カーソル監視の常駐プロセス
 // PowerShell を 1 本立ち上げ、GetCursorPos でカーソル位置を監視させる。
 // 「カーソル位置で起動」と「カーソルが外れたら最小化」の両方をこれ 1 本が担う
@@ -2403,8 +2711,57 @@ function applyTopmost(on) {
 function startWatcher() {
     runPs("ps-cursor-watcher", {
         "__CFGPATH__": psq(CFGPATH),
-        "__HTAPATH__": psq(SELFPATH)
+        "__HTAPATH__": psq(SELFPATH),
+        "__HKSTATPATH__": psq(HKSTATPATH),
+        "__MODALPATH__": psq(MODALFLAGPATH)
     });
+}
+
+// ===========================================================
+// ホットキー登録状況の表示
+// 常駐 PowerShell は UI を持たないため、RegisterHotKey の成否を
+// %TEMP% の 1 行ファイルに書いてもらい、設定画面でそれを読んで知らせる。
+// 他アプリと組み合わせが衝突すると「押しても無反応」になるが、
+// 理由が分からないと直しようがないため。
+// ===========================================================
+var hkStatTimer = null;
+
+function updateHotkeyStatus() {
+    var el = ge("s-hotkey-msg");
+    if (!el) { return; }
+    var stat = "";
+    try {
+        if (fso.FileExists(HKSTATPATH)) { stat = trim(readUtf8(HKSTATPATH)); }
+    } catch (e) {}
+
+    if (!cfg.settings.hotkeyEnabled) {
+        el.className = "shint";
+        el.innerHTML = "";
+    } else if (stat === "conflict") {
+        el.className = "shint err";
+        el.innerHTML = "他のアプリが使用中のため登録できませんでした。別のキーを試してください。";
+    } else if (stat === "ok") {
+        el.className = "shint";
+        el.innerHTML = "有効です。";
+    } else {
+        el.className = "shint";
+        el.innerHTML = "";
+    }
+}
+
+// 常駐側は config.json を最大 1 秒周期で読み直すので、
+// 設定を変えた直後ではなく、反映を待ってから状況を読む。
+function scheduleHotkeyStatus() {
+    var el = ge("s-hotkey-msg");
+    if (el && cfg.settings.hotkeyEnabled) {
+        el.className = "shint";
+        el.innerHTML = "登録中…";
+    }
+    if (hkStatTimer) { window.clearTimeout(hkStatTimer); }
+    hkStatTimer = window.setTimeout(function () {
+        hkStatTimer = null;
+        updateHotkeyStatus();
+    }, 1500);
 }
 
 </script>
@@ -2447,10 +2804,61 @@ if ($hwnd -ne [IntPtr]::Zero) {
 }
 </script>
 
+<script type="text/powershell" id="ps-restore">
+$title = 'HTALauncher'
+
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class HtaRestore {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+}
+'@
+
+$SW_RESTORE = 9
+
+$hwnd = [HtaRestore]::FindWindow('HTML Application Host Window Class', $title)
+if ($hwnd -ne [IntPtr]::Zero) {
+    # 常駐ウォッチャーの Invoke-Activate と同じ理由で、フォアグラウンド
+    # スレッドの入力キューに一時的に接続してから前面化する
+    $fgProcId = 0
+    $fgThreadId = [HtaRestore]::GetWindowThreadProcessId([HtaRestore]::GetForegroundWindow(), [ref]$fgProcId)
+    $curThreadId = [HtaRestore]::GetCurrentThreadId()
+
+    $attached = $false
+    if ($fgThreadId -ne 0 -and $fgThreadId -ne $curThreadId) {
+        $attached = [HtaRestore]::AttachThreadInput($curThreadId, $fgThreadId, $true)
+    }
+    try {
+        [HtaRestore]::ShowWindow($hwnd, $SW_RESTORE) | Out-Null
+        [HtaRestore]::SetForegroundWindow($hwnd) | Out-Null
+    } finally {
+        if ($attached) {
+            [HtaRestore]::AttachThreadInput($curThreadId, $fgThreadId, $false) | Out-Null
+        }
+    }
+}
+</script>
+
 <script type="text/powershell" id="ps-cursor-watcher">
-$cfgPath = '__CFGPATH__'
-$htaPath = '__HTAPATH__'
-$title   = 'HTALauncher'
+$cfgPath  = '__CFGPATH__'
+$htaPath  = '__HTAPATH__'
+$hkStatPath = '__HKSTATPATH__'
+$modalPath  = '__MODALPATH__'
+$title    = 'HTALauncher'
 
 # 多重起動防止。HTALauncher を再起動しても、設定を ON/OFF し直しても
 # 常駐は 1 本に保たれる（ロックファイルと違い後始末も不要）。
@@ -2487,6 +2895,18 @@ public class HtaWin {
     public static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")]
     public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSG {
+        public IntPtr hwnd; public uint message; public IntPtr wParam; public IntPtr lParam;
+        public uint time; public int ptX; public int ptY;
+    }
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    [DllImport("user32.dll")]
+    public static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 }
 '@
 
@@ -2494,6 +2914,15 @@ $SW_RESTORE = 9
 $SW_MINIMIZE = 6
 $SPI_GETWORKAREA = 0x0030
 $THICKNESS = 4
+
+$MOD_ALT      = 0x0001
+$MOD_CONTROL  = 0x0002
+$MOD_SHIFT    = 0x0004
+# 押しっぱなしのオートリピートを OS 側で抑止する（Windows 7 以降）
+$MOD_NOREPEAT = 0x4000
+$WM_HOTKEY    = 0x0312
+$PM_REMOVE    = 0x0001
+$HOTKEY_ID    = 1
 # ウィンドウから出てすぐに最小化すると、端をかすめただけで消えて使いにくい。
 # この時間だけ外に居続けたら最小化する。
 $LEAVE_DWELL_MS = 400
@@ -2554,6 +2983,49 @@ function Invoke-Activate {
     }
 }
 
+# グローバルホットキーの登録し直し。
+# hWnd に IntPtr::Zero を渡すと WM_HOTKEY は「登録したスレッド」のメッセージ
+# キューに届く。このスクリプトは終始同じスレッドで回っているので問題ない。
+# 登録の成否は HTALauncher 側からは分からないため、ステータスファイルで返す
+# （衝突すると「押しても無反応」になり、理由が分からないと直せないため）。
+function Set-Hotkey($on, $hk) {
+    if ($script:hkRegistered) {
+        [HtaWin]::UnregisterHotKey([IntPtr]::Zero, $HOTKEY_ID) | Out-Null
+        $script:hkRegistered = $false
+    }
+
+    $status = 'off'
+    if ($on -and $hk -ne $null -and $hk.vk) {
+        $mods = $MOD_NOREPEAT
+        if ($hk.ctrl)  { $mods = $mods -bor $MOD_CONTROL }
+        if ($hk.alt)   { $mods = $mods -bor $MOD_ALT }
+        if ($hk.shift) { $mods = $mods -bor $MOD_SHIFT }
+        if ([HtaWin]::RegisterHotKey([IntPtr]::Zero, $HOTKEY_ID, [uint32]$mods, [uint32]$hk.vk)) {
+            $script:hkRegistered = $true
+            $status = 'ok'
+        } else {
+            # 他のアプリが同じ組み合わせを先に握っている
+            $status = 'conflict'
+        }
+    }
+    try { [IO.File]::WriteAllText($hkStatPath, $status, [Text.Encoding]::UTF8) } catch {}
+}
+
+# ホットキーはトグル動作にする。
+# 前面にいるときにもう一度押したら引っ込む、という一般的なランチャーの挙動。
+function Invoke-Toggle {
+    $hwnd = [HtaWin]::FindWindow('HTML Application Host Window Class', $title)
+    if ($hwnd -eq [IntPtr]::Zero) {
+        if ($htaPath -ne '') { Start-Process 'mshta.exe' -ArgumentList ('"' + $htaPath + '"') }
+        return
+    }
+    if (-not [HtaWin]::IsIconic($hwnd) -and [HtaWin]::GetForegroundWindow() -eq $hwnd) {
+        [HtaWin]::ShowWindow($hwnd, $SW_MINIMIZE) | Out-Null
+    } else {
+        Invoke-Activate
+    }
+}
+
 # カーソルがウィンドウから外れたら最小化する。
 # 判定にはクライアント領域ではなくウィンドウ矩形（タイトルバー・枠を含む）を使う。
 # HTA 側の mouseleave だと、閉じるボタンに手を伸ばした瞬間やタイトルバーを
@@ -2593,6 +3065,11 @@ function Update-AutoMinimize($p, $ms) {
     if (-not $script:armed) { return }
     if ($script:leftAt -eq 0) { $script:leftAt = $ms; return }
     if (($ms - $script:leftAt) -ge $LEAVE_DWELL_MS) {
+        # 追加/編集ダイアログや設定を開いている間は最小化しない。
+        # これらは HTA の中に描かれるので別ウィンドウとして判別できず、
+        # 参照ボタンやファイル選択で枠の外を操作すると消えてしまうため。
+        # 実際に最小化する直前だけ見に行けば、常駐中のファイル確認は最小限で済む。
+        if ([IO.File]::Exists($modalPath)) { $script:leftAt = 0; return }
         [HtaWin]::ShowWindow($hwnd, $SW_MINIMIZE) | Out-Null
         $script:armed = $false
         $script:leftAt = 0
@@ -2603,6 +3080,9 @@ $pos  = $null
 $zone = $null
 $triggerOn = $false
 $autoMinOn = $false
+$hotkeyOn  = $false
+$hkRegistered = $false
+$hkSig     = 'off'       # 登録済みホットキーの設定署名（変化時だけ登録し直す）
 $armed     = $false      # 一度ウィンドウ内にカーソルが入ったか
 $leftAt    = [int64]0    # ウィンドウ外に出た時刻（0 = 外に出ていない）
 $lastCfgCheck = [int64](-10000)
@@ -2619,6 +3099,10 @@ $wasInside = $true
 #    すると、それだけで常駐プロセスの CPU の大半を占めてしまう）
 $clock = [Diagnostics.Stopwatch]::StartNew()
 $pt = New-Object 'HtaWin+POINT'
+$msg = New-Object 'HtaWin+MSG'
+
+# RegisterHotKey より先にメッセージキューを確実に作っておく
+[HtaWin]::PeekMessage([ref]$msg, [IntPtr]::Zero, 0, 0, $PM_REMOVE) | Out-Null
 
 try {
     while ($true) {
@@ -2638,12 +3122,23 @@ try {
                     if (-not $cfg.settings) { break }
                     $triggerOn = [bool]$cfg.settings.cursorTriggerEnabled
                     $autoMinOn = [bool]$cfg.settings.autoMinimizeOnLeave
-                    # 両方 OFF になったら常駐している意味がないので終了する
-                    if (-not $triggerOn -and -not $autoMinOn) { break }
+                    $hotkeyOn  = [bool]$cfg.settings.hotkeyEnabled
+                    # すべて OFF になったら常駐している意味がないので終了する
+                    if (-not $triggerOn -and -not $autoMinOn -and -not $hotkeyOn) { break }
                     $newPos = $cfg.settings.cursorTriggerPosition
                     if ($newPos -ne $pos) {
                         $pos = $newPos
                         $wasInside = $true
+                    }
+                    # 毎秒 RegisterHotKey をやり直さないよう、設定が変わったときだけ登録する
+                    $hk = $cfg.settings.hotkey
+                    $newSig = 'off'
+                    if ($hotkeyOn -and $hk -ne $null) {
+                        $newSig = '{0}|{1}|{2}|{3}' -f [bool]$hk.ctrl, [bool]$hk.alt, [bool]$hk.shift, $hk.vk
+                    }
+                    if ($newSig -ne $hkSig) {
+                        $hkSig = $newSig
+                        Set-Hotkey $hotkeyOn $hk
                     }
                 }
             }
@@ -2669,9 +3164,21 @@ try {
             if ($autoMinOn) { Update-AutoMinimize $pt $ms }
         }
 
+        # ショートカットキー。ブロックする GetMessage ではなく PeekMessage を使うのは、
+        # カーソル監視の 50ms ポーリングを止めないため（反応の遅れは最大 50ms）。
+        if ($hkRegistered) {
+            while ([HtaWin]::PeekMessage([ref]$msg, [IntPtr]::Zero, 0, 0, $PM_REMOVE)) {
+                if ($msg.message -eq $WM_HOTKEY) { Invoke-Toggle }
+            }
+        }
+
         [System.Threading.Thread]::Sleep(50)
     }
 } finally {
+    if ($hkRegistered) {
+        [HtaWin]::UnregisterHotKey([IntPtr]::Zero, $HOTKEY_ID) | Out-Null
+    }
+    try { [IO.File]::WriteAllText($hkStatPath, 'off', [Text.Encoding]::UTF8) } catch {}
     $mutex.ReleaseMutex()
     $mutex.Dispose()
 }
