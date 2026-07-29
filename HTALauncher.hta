@@ -63,6 +63,15 @@ body.light .tbtn { color: #666; }
 body.dark  #content { background: #1C1C1C; }
 body.light #content { background: #F3F3F3; }
 
+/* ===== ドック =====
+   画面下部に固定する領域。タブを切り替えても中身は変わらない。
+   高さは行数設定から JScript 側で入れる（#content の bottom も同じ値になる） */
+#dock { position: absolute; left: 0; right: 0; bottom: 0; display: none;
+        overflow: auto; padding: 6px; -ms-overflow-style: -ms-autohiding-scrollbar; }
+#dock.on { display: block; }
+body.dark  #dock { background: #1C1C1C; border-top: 1px solid #383838; }
+body.light #dock { background: #F3F3F3; border-top: 1px solid #D5D5D5; }
+
 /* ===== グリッドビュー ===== */
 /* gcell の width/height/gicon サイズは renderGrid で動的設定 */
 .gcell { display: inline-block; margin: 2px; text-align: center; cursor: pointer; vertical-align: top; border-radius: 3px; }
@@ -212,10 +221,13 @@ body.light #ipc-status { color: #666; }
 /* ===== アイテム追加/編集ダイアログ ===== */
 #dlg-ov { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 20;
           display: none; -ms-flex-align: center; align-items: center;
-          -ms-flex-pack: center; justify-content: center; background: rgba(0,0,0,.55); }
+          -ms-flex-pack: center; justify-content: center;
+          padding: 16px; background: rgba(0,0,0,.55); }
 #dlg-ov.open { display: -ms-flexbox; display: flex; }
 
-#dlg-box { width: 460px; padding: 20px; border-radius: 4px; }
+/* 詳細設定を開くと縦に伸びるので、窓が小さいときは箱の中でスクロールさせる */
+#dlg-box { width: 460px; max-width: 100%; max-height: 100%; overflow-y: auto;
+           padding: 20px; border-radius: 4px; }
 body.dark  #dlg-box { background: #2D2D2D; border: 1px solid #555; }
 body.light #dlg-box { background: #FFF;    border: 1px solid #CCC; }
 
@@ -237,6 +249,21 @@ body.light .dlg-inp:focus { border-color: #0078D7; }
 
 .dlg-btns { display: -ms-flexbox; display: flex; -ms-flex-pack: end; justify-content: flex-end; margin-top: 14px; }
 .dlg-btns .sbtn { margin-left: 8px; }
+
+/* ===== 詳細設定（起動オプション） ===== */
+/* 既定では畳んでおき、「詳細設定」ボタンで開く */
+#dlg-adv { display: none; }
+#dlg-adv.open { display: block; }
+
+.dlg-sep { height: 1px; margin: 14px 0 12px; }
+body.dark  .dlg-sep { background: #444; }
+body.light .dlg-sep { background: #DDD; }
+
+/* 詳細設定ボタンは左、OK/キャンセルは右に分ける。
+   #msg-btns も .dlg-btns を使っているので、この配置はダイアログ側だけに当てる */
+.dlg-foot { -ms-flex-pack: justify; justify-content: space-between; }
+.dlg-foot > .sbtn { margin-left: 0; }
+.dlg-foot-r .sbtn { margin-left: 8px; }
 
 /* ===== メッセージ / 確認ダイアログ =====
    ネイティブの alert / confirm は画面中央に出てしまい、HTALauncher の窓と
@@ -274,6 +301,7 @@ body.light #msg-text { color: #1E1E1E; }
   </div>
   <div id="tab-panel"></div>
   <div id="content"></div>
+  <div id="dock"></div>
 </div>
 
 <!-- 設定オーバーレイ -->
@@ -437,6 +465,17 @@ body.light #msg-text { color: #1E1E1E; }
           <select id="s-rows"></select>
         </div>
         <div class="srow">
+          <span class="slbl">ドック</span>
+          <select id="s-dock">
+            <option value="false">使わない</option>
+            <option value="true">使う</option>
+          </select>
+        </div>
+        <div class="srow">
+          <span class="slbl">ドック：行数</span>
+          <select id="s-dockrows"></select>
+        </div>
+        <div class="srow">
           <span class="slbl">リスト：行高 (px)</span>
           <select id="s-listheight"></select>
         </div>
@@ -473,9 +512,42 @@ body.light #msg-text { color: #1E1E1E; }
       <button class="sbtn" id="d-icon-win"    style="-ms-flex-negative:0;flex-shrink:0;margin-left:4px">Iconify</button>
     </div>
     <input type="file" id="icon-file-picker" accept=".ico,.png,.bmp,.jpg,.jpeg" style="display:none">
-    <div class="dlg-btns">
-      <button class="sbtn pri" id="d-ok"    >OK</button>
-      <button class="sbtn"     id="d-cancel">キャンセル</button>
+
+    <!-- 詳細設定（起動オプション）。既定は畳んだ状態 -->
+    <div id="dlg-adv">
+      <div class="dlg-sep"></div>
+      <div class="dlg-row">
+        <span class="dlg-lbl">引数</span>
+        <input class="dlg-inp" id="d-args" type="text" placeholder="省略可 (例: --incognito)">
+      </div>
+      <div class="dlg-row">
+        <span class="dlg-lbl">作業フォルダ</span>
+        <input class="dlg-inp" id="d-workdir" type="text" placeholder="省略可" style="margin-right:4px">
+        <button class="sbtn" id="d-workdir-browse" style="-ms-flex-negative:0;flex-shrink:0">参照</button>
+      </div>
+      <div class="dlg-row">
+        <span class="dlg-lbl">実行方法</span>
+        <select class="dlg-inp" id="d-runas">
+          <option value="normal">通常</option>
+          <option value="admin">管理者として実行</option>
+        </select>
+      </div>
+      <div class="dlg-row">
+        <span class="dlg-lbl">ウィンドウ</span>
+        <select class="dlg-inp" id="d-winstate">
+          <option value="normal">通常</option>
+          <option value="max">最大化</option>
+          <option value="min">最小化</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="dlg-btns dlg-foot">
+      <button class="sbtn" id="d-adv-toggle">詳細設定 ▼</button>
+      <span class="dlg-foot-r">
+        <button class="sbtn pri" id="d-ok"    >OK</button>
+        <button class="sbtn"     id="d-cancel">キャンセル</button>
+      </span>
     </div>
   </div>
 </div>
@@ -657,6 +729,7 @@ function defHotkey() {
 var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
+                                      dockEnabled: false, dockRows: 1,
                                       startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false,
                                       cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight",
                                       autoMinimizeOnLeave: false,
@@ -672,6 +745,10 @@ var cfg = (function() {
             if (!s.gridCellWidth || s.gridCellWidth < 32)  { s.gridCellWidth = 72; }
             if (!s.gridCols      || s.gridCols < 2)        { s.gridCols = 5; }
             if (!s.gridRows      || s.gridRows < 2)        { s.gridRows = 6; }
+            // ドックは全体の行数から取り分ける形なので、必ず行数より少なくする
+            if (typeof s.dockEnabled !== "boolean") { s.dockEnabled = false; }
+            if (!s.dockRows || s.dockRows < 1) { s.dockRows = 1; }
+            if (s.dockRows > s.gridRows - 1)   { s.dockRows = s.gridRows - 1; }
             if (!s.windowPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "center"].indexOf(s.windowPosition) < 0) { s.windowPosition = "center"; }
             if (!s.fontSize || ["small", "medium", "large"].indexOf(s.fontSize) < 0) { s.fontSize = "small"; }
             if (!s.listRowHeight || s.listRowHeight < 20) { s.listRowHeight = 30; }
@@ -695,11 +772,16 @@ var cfg = (function() {
             }
             // tabPositions 旧フォーマット移行: {"group": {col,row}} → {col,row}
             for (var mi = 0; mi < c.apps.length; mi++) {
-                var mtp = c.apps[mi].tabPositions;
+                var ma  = c.apps[mi];
+                var mtp = ma.tabPositions;
                 if (mtp && typeof mtp.col === "undefined") {
-                    var mg = c.apps[mi].group;
-                    c.apps[mi].tabPositions = (mg && mtp[mg]) ? mtp[mg] : undefined;
+                    var mg = ma.group;
+                    ma.tabPositions = (mg && mtp[mg]) ? mtp[mg] : undefined;
                 }
+                // 起動オプション（省略可）。既定値のキーは持たせない方針なので、
+                // 手で書き換えられた config でも知らない値は落として既定に倒す
+                if (ma.runAs !== "admin") { delete ma.runAs; }
+                if (ma.winState !== "max" && ma.winState !== "min") { delete ma.winState; }
             }
             return c;
         }
@@ -721,6 +803,7 @@ var curTab    = (cfg.settings.startTab === "last" && cfg.settings.lastTab)
                 : "すべて";
 var selIdx    = -1;
 var dlgIdx    = -1;
+var advOpen   = false;  // 追加/編集ダイアログの詳細設定が開いているか
 var dragSrc   = -1;
 var contextTargetIdx = -1;
 var pendingDropPaths = []; // ondragenter で事前取得したパス一覧
@@ -730,6 +813,10 @@ var kbdMoved        = false; // true のときのみ scrollIntoView を実行
 var lastFilteredList = [];  // getFiltered() のキャッシュ（onkeydown で再計算しないため）
 var preSearchTab    = null; // 検索前のタブ（検索クリア時に戻るため）
 var kbdGridPos      = null; // 座標配置モードのカーソル位置 {col, row}
+var kbdInDock       = false; // キーボードのフォーカスがドック側にあるか
+var kbdDockPos      = null;  // ドック内のカーソル位置 {col, row}
+var lastDockList    = [];    // ドックに並ぶアイテム（render() の先頭で作り直す）
+var bgAddGroup      = null;  // 余白の右クリックで「追加」したときの既定グループ
 var lblH  = 0; // グリッドビューでのアイコン下のラベルの高さ
 
 // ===========================================================
@@ -761,6 +848,8 @@ window.onload = function () {
         var key = (e || window.event).keyCode;
         if (key >= 37 && key <= 40) { return; } // 矢印キー
         if (key === 13) { return; }              // Enter
+        // 絞り込み直後はコンテンツ側の結果を見たいので、フォーカスをドックから戻す
+        kbdInDock = false;
         var q = this.value;
         if (q !== "" && curTab !== "\u3059\u3079\u3066") {
             // 検索開始：「すべて」へ移動してタブを記憶
@@ -875,12 +964,34 @@ window.onload = function () {
     ge("s-view").onchange     = function () { cfg.settings.defaultView = this.value; saveCfg(); viewMode = this.value; updViewBtns(); render(); };
     ge("s-cellw").onchange    = function () { cfg.settings.gridCellWidth = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
     ge("s-cols").onchange     = function () { cfg.settings.gridCols    = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
-    ge("s-rows").onchange     = function () { cfg.settings.gridRows    = parseInt(this.value, 10); saveCfg(); resizeToGrid(); render(); };
+    ge("s-rows").onchange     = function () {
+        cfg.settings.gridRows = parseInt(this.value, 10);
+        // ドックの行数は全体の行数より少なくなければならないので詰め直す
+        fillDockRows();
+        saveCfg();
+        resizeToGrid();
+        render();
+    };
+    ge("s-dock").onchange     = function () {
+        cfg.settings.dockEnabled = (this.value === "true");
+        saveCfg();
+        // ドックを止めると dock グループがタブとして現れ、始めるとタブが消える
+        renderTabs();
+        render();
+    };
+    ge("s-dockrows").onchange = function () { cfg.settings.dockRows = parseInt(this.value, 10); saveCfg(); render(); };
     ge("s-listheight").onchange = function () { cfg.settings.listRowHeight = parseInt(this.value, 10); saveCfg(); render(); };
 
     // ダイアログボタン
     ge("d-ok").onclick     = function () { dlgSave(); };
     ge("d-cancel").onclick = function () { dlgClose(); };
+
+    // 詳細設定（起動オプション）
+    ge("d-adv-toggle").onclick = function () { setAdvanced(!advOpen); };
+    ge("d-workdir-browse").onclick = function () {
+        var p = pickFolder();
+        if (p) { ge("d-workdir").value = p; }
+    };
 
     // パス参照：ファイル（HTA完全信頼モードではinput.valueにフルパスが入る）
     ge("d-path-file").onclick = function () { ge("path-file-picker").click(); };
@@ -913,20 +1024,28 @@ window.onload = function () {
     render();
     updViewBtns();
     positionToWindow();
-    if (cfg.settings.topmost) { applyTopmost(true); }
     // 前回の異常終了でフラグが残っていると自動最小化が効かないままになる
     clearModalFlag();
-    if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave || cfg.settings.hotkeyEnabled) { startWatcher(); }
+    // 起動直後（mshta のプロセス起動スキャン窓の中）で powershell を自動起動
+    // すると、EDR/AV に「開いた瞬間に無操作で powershell を起こす」ドロッパー的
+    // 挙動と見なされて弾かれやすい。数秒遅らせて初回スキャン窓とプロセス起動
+    // 相関から外す。同じ spawn でも設定 UI からの切替（ユーザー操作起点）は
+    // 通るという実測に基づく対策。機能面では、この遅延の間だけ最前面化・
+    // カーソル起動・ホットキーが効かないだけで実害はない。
+    setTimeout(function () {
+        if (cfg.settings.topmost) { applyTopmost(true); }
+        if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave || cfg.settings.hotkeyEnabled) { startWatcher(); }
+    }, 100);
 
     // 右クリックメニュー
     ge("menu-edit").onclick = function () {
-        ge("context-menu").style.display = "none";
+        hideContextMenus();
         if (contextTargetIdx >= 0) {
             dlgOpen(contextTargetIdx);
         }
     };
     ge("menu-delete").onclick = function () {
-        ge("context-menu").style.display = "none";
+        hideContextMenus();
         if (contextTargetIdx < 0) { return; }
         // 応答を待つ間に contextTargetIdx が書き換わりうるので控えておく
         var delIdx = contextTargetIdx;
@@ -938,23 +1057,29 @@ window.onload = function () {
         });
     };
     ge("menu-add").onclick = function () {
-        ge("bg-context-menu").style.display = "none";
-        dlgOpen(-1);
+        hideContextMenus();
+        dlgOpen(-1, bgAddGroup);
     };
     document.onclick = function () {
-        ge("context-menu").style.display = "none";
-        ge("bg-context-menu").style.display = "none";
+        hideContextMenus();
     };
     // コンテンツ余白の右クリックで「追加」メニューを表示
     ge("content").oncontextmenu = function (e) {
         var ev = e || window.event;
         // アイテム上の右クリックは各セルのハンドラが処理するため伝播を止めてある
         // ここに到達したのは余白クリック
-        ge("context-menu").style.display = "none";
-        var menu = ge("bg-context-menu");
-        menu.style.left = ev.clientX + "px";
-        menu.style.top  = ev.clientY + "px";
-        menu.style.display = "block";
+        bgAddGroup = null;   // 今開いているタブのグループを既定にする
+        showContextMenu("bg-context-menu", ev.clientX, ev.clientY);
+        ev.preventDefault();
+        return false;
+    };
+
+    // ドック余白の右クリックも同じ「追加」メニュー。
+    // ここから追加したものはドックに入ってほしいので、グループを dock で開く
+    ge("dock").oncontextmenu = function (e) {
+        var ev = e || window.event;
+        bgAddGroup = DOCK_GROUP;
+        showContextMenu("bg-context-menu", ev.clientX, ev.clientY);
         ev.preventDefault();
         return false;
     };
@@ -1042,11 +1167,7 @@ window.onload = function () {
 
         // Ctrl+Tab / Ctrl+Shift+Tab でタブ切り替え
         if (key === 9 && ev.ctrlKey) {
-            var groups = ["\u3059\u3079\u3066"], seen = {};
-            for (var ti = 0; ti < cfg.apps.length; ti++) {
-                var tg = cfg.apps[ti].group;
-                if (tg && tg !== "" && !seen[tg]) { groups.push(tg); seen[tg] = 1; }
-            }
+            var groups = getGroups();
             var idx = 0;
             for (var k = 0; k < groups.length; k++) { if (groups[k] === curTab) { idx = k; break; } }
             if (ev.shiftKey) {
@@ -1056,6 +1177,7 @@ window.onload = function () {
             }
             curTab = groups[idx];
             kbdGridPos = null;
+            kbdInDock  = false;
             renderTabs();
             render();
             ev.preventDefault();
@@ -1063,10 +1185,13 @@ window.onload = function () {
         }
 
         var list = lastFilteredList;
-        if (!list.length) { return; }
+        if (!list.length && !dockNavOn()) { return; }
 
         if (key >= 37 && key <= 40) {
-            if (viewMode === "grid" && curTab !== "\u3059\u3079\u3066") {
+            if (kbdInDock) {
+                // ドック内の移動。一番上の行からさらに上でコンテンツへ戻る
+                moveInDock(key);
+            } else if (viewMode === "grid" && curTab !== "\u3059\u3079\u3066") {
                 // 座標配置モード: グリッド範囲内を上下左右移動
                 if (kbdGridPos === null) { kbdGridPos = findNearestTopLeft(list); }
                 var bounds = getGridBounds(list);
@@ -1075,6 +1200,10 @@ window.onload = function () {
                 else if (key === 39) { nc++; }
                 else if (key === 38) { nr--; }
                 else if (key === 40) { nr++; }
+                // 一番下の行からさらに下 → ドックへ移る
+                if (key === 40 && (nr > bounds.maxRow || !list.length)) {
+                    if (enterDock(kbdGridPos.col)) { ev.preventDefault(); return false; }
+                }
                 nc = Math.max(bounds.minCol, Math.min(bounds.maxCol, nc));
                 nr = Math.max(bounds.minRow, Math.min(bounds.maxRow, nr));
                 if (nc !== kbdGridPos.col || nr !== kbdGridPos.row) {
@@ -1084,10 +1213,12 @@ window.onload = function () {
                 }
             } else {
                 var next = kbdIdx;
+                var col  = 0;
                 if (viewMode === "grid") {
                     var cw   = cfg.settings.gridCellWidth || 72;
                     var ctEl = ge("content");
                     var cols = Math.max(1, Math.floor((ctEl.clientWidth || ctEl.offsetWidth || 400) / (cw + 4)));
+                    col = kbdIdx % cols;
                     if      (key === 37) { next -= 1; }
                     else if (key === 39) { next += 1; }
                     else if (key === 38) { next -= cols; }
@@ -1096,6 +1227,10 @@ window.onload = function () {
                     if      (key === 38) { next -= 1; }
                     else if (key === 40) { next += 1; }
                     else { return; }
+                }
+                // 最後の行からさらに下 → ドックへ移る
+                if (key === 40 && next > list.length - 1) {
+                    if (enterDock(col)) { ev.preventDefault(); return false; }
                 }
                 next = Math.max(0, Math.min(next, list.length - 1));
                 if (next !== kbdIdx) {
@@ -1110,6 +1245,12 @@ window.onload = function () {
         }
 
         if (key === 13) {
+            if (kbdInDock) {
+                var di = findIdxAtPos(lastDockList, kbdDockPos);
+                if (di >= 0) { launch(lastDockList[di].a); }
+                ev.preventDefault();
+                return false;
+            }
             // 座標配置モードで空セル選択中は何もしない
             if (viewMode === "grid" && curTab !== "\u3059\u3079\u3066" && kbdIdx < 0) {
                 ev.preventDefault();
@@ -1140,7 +1281,12 @@ function isAnyModalOpen() {
     return ge("dlg-ov").className       === "open" ||
            ge("iconpicker-ov").className === "open" ||
            ge("settings").className      === "open" ||
-           ge("msg-ov").className        === "open";
+           ge("msg-ov").className        === "open" ||
+           // 右クリックメニューも別ウィンドウではないので、開いている間は
+           // ウォッチャーに最小化されるとメニューごと消える。ダイアログと
+           // 同様に「最小化するな」の対象に含める。
+           ge("context-menu").style.display    === "block" ||
+           ge("bg-context-menu").style.display === "block";
 }
 
 // ===========================================================
@@ -1173,6 +1319,25 @@ function clearModalFlag() {
 // フラグの更新を書き漏らし、最小化が止まらない/止まったままになるため。
 function setOverlay(id, open) {
     ge(id).className = open ? "open" : "";
+    syncModalFlag();
+}
+
+// 右クリックメニューの表示/非表示は必ずここを通す。display を直接書き換えると
+// syncModalFlag() を呼び忘れ、メニューを開いている最中にカーソルが枠外へ出た
+// 隙にウォッチャーへ最小化され、メニューごと消えてしまうため。
+function showContextMenu(id, x, y) {
+    var other = (id === "context-menu") ? "bg-context-menu" : "context-menu";
+    ge(other).style.display = "none";
+    var menu = ge(id);
+    menu.style.left = x + "px";
+    menu.style.top  = y + "px";
+    menu.style.display = "block";
+    syncModalFlag();
+}
+
+function hideContextMenus() {
+    ge("context-menu").style.display = "none";
+    ge("bg-context-menu").style.display = "none";
     syncModalFlag();
 }
 
@@ -1232,29 +1397,40 @@ function msgConfirm(text, onYes) {
 }
 
 // フォルダ選択ダイアログ（Shell.Application.BrowseForFolder）
-function browseForFolder() {
+// 選んだパスを返す。キャンセル時と失敗時は null。
+function pickFolder() {
     try {
         var shell = new ActiveXObject("Shell.Application");
         // 0x40 = BIF_NEWDIALOGSTYLE
         var item = shell.BrowseForFolder(0, "\u30d5\u30a9\u30eb\u30c0\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044", 0x40);
-        if (item) {
-            var path = item.Self.Path;
-            ge("d-path").value = path;
-            if (!ge("d-name").value) {
-                var parts = path.replace(/[\\]+$/, "").split("\\");
-                ge("d-name").value = parts[parts.length - 1] || "";
-            }
-        }
+        if (item) { return item.Self.Path; }
     } catch (ex) {}
+    return null;
 }
 
-function handleDropApp(e, dropCol, dropRow) {
+// パス欄へのフォルダ選択（表示名が空なら末尾のフォルダ名で埋める）
+function browseForFolder() {
+    var path = pickFolder();
+    if (!path) { return; }
+    ge("d-path").value = path;
+    if (!ge("d-name").value) {
+        var parts = path.replace(/[\\]+$/, "").split("\\");
+        ge("d-name").value = parts[parts.length - 1] || "";
+    }
+}
+
+// tgtGroup を渡すとそのグループへ追加する（ドックへのドロップで使う）。
+// 省略時は今開いているタブのグループ。
+function handleDropApp(e, dropCol, dropRow, tgtGroup) {
     if (!e || !e.dataTransfer) { return false; }
     e.stopPropagation();
     e.preventDefault();
     var prevLen = cfg.apps.length;
     var added = false;
     var dt = e.dataTransfer;
+    var dropGroup = (typeof tgtGroup === "string")
+                    ? tgtGroup
+                    : ((curTab !== "すべて") ? curTab : "");
 
     var textData = "", urlData = "";
     try { textData = dt.getData("Text") || ""; } catch (ex) {}
@@ -1289,7 +1465,6 @@ function handleDropApp(e, dropCol, dropRow) {
     }
 
     if (localPaths.length > 0) {
-        var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
         for (var i = 0; i < localPaths.length; i++) {
             var localPath = localPaths[i];
             var parts = localPath.replace(/[\\]+$/, "").split("\\");
@@ -1307,7 +1482,6 @@ function handleDropApp(e, dropCol, dropRow) {
         if (httpMatch) {
             // URLドロップ: タイトルをfetchして直接追加（ダイアログなし）
             var href = httpMatch[1];
-            var dropGroup = (curTab !== "\u3059\u3079\u3066") ? curTab : "";
             // まずホスト名を仮の表示名にして即追加し、タイトルは通信を待たずに
             // 後から差し替える（同期取得だとここでアプリ全体が固まるため）
             var hostName = href.replace(/^https?:\/\//, "").split("/")[0];
@@ -1343,14 +1517,8 @@ function handleDropApp(e, dropCol, dropRow) {
 
     if (added) {
         // 座標配置モードでのドロップ時、追加アイテムに位置を割り当て
-        if (curTab !== "\u3059\u3079\u3066" && viewMode === "grid" && dropCol !== undefined) {
-            var occ = {};
-            for (var ok = 0; ok < prevLen; ok++) {
-                var otp = cfg.apps[ok].tabPositions;
-                if (otp && typeof otp.col !== "undefined" && cfg.apps[ok].group === curTab) {
-                    occ[otp.col + "," + otp.row] = true;
-                }
-            }
+        if (dropGroup !== "" && viewMode === "grid" && dropCol !== undefined) {
+            var occ = occupiedMap(dropGroup, null);
             var dc = dropCol, dr = dropRow || 0;
             for (var ni = prevLen; ni < cfg.apps.length; ni++) {
                 cfg.apps[ni].tabPositions = findFreePosNear(dc, dr, occ);
@@ -1382,14 +1550,25 @@ function applyFontSize(fs) {
 // ===========================================================
 // タブ描画
 // ===========================================================
-function renderTabs() {
-    var panel = ge("tab-panel");
-    panel.innerHTML = "";
+// タブに並べるグループ名の一覧。先頭は必ず「すべて」。
+// ドックが有効なときは dock グループを除く（ドックとタブの二重表示を避ける）。
+// 無効なときは他のグループと同じようにタブとして出す。
+function getGroups() {
     var groups = ["\u3059\u3079\u3066"], seen = {};
     for (var i = 0; i < cfg.apps.length; i++) {
         var g = cfg.apps[i].group;
-        if (g && g !== "" && !seen[g]) { groups.push(g); seen[g] = 1; }
+        if (!g || g === "" || seen[g]) { continue; }
+        if (dockOn() && g === DOCK_GROUP) { continue; }
+        groups.push(g);
+        seen[g] = 1;
     }
+    return groups;
+}
+
+function renderTabs() {
+    var panel = ge("tab-panel");
+    panel.innerHTML = "";
+    var groups = getGroups();
     if (!inArray(groups, curTab)) { curTab = "\u3059\u3079\u3066"; }
 
     for (var j = 0; j < groups.length; j++) {
@@ -1397,7 +1576,7 @@ function renderTabs() {
             var b = document.createElement("button");
             b.className   = "tbtn" + (gn === curTab ? " active" : "");
             b.textContent = gn;
-            b.onclick = function () { curTab = gn; kbdGridPos = null; renderTabs(); render(); };
+            b.onclick = function () { curTab = gn; kbdGridPos = null; kbdInDock = false; renderTabs(); render(); };
             panel.appendChild(b);
         }(groups[j]));
     }
@@ -1483,6 +1662,18 @@ function findFreePosNear(col, row, occ) {
     }
 }
 
+// あるグループが占めている座標のマップ。exceptApp は除外する（移動元を数えないため）
+function occupiedMap(group, exceptApp) {
+    var occ = {};
+    for (var i = 0; i < cfg.apps.length; i++) {
+        var a = cfg.apps[i];
+        if (a === exceptApp || a.group !== group) { continue; }
+        var p = a.tabPositions;
+        if (p && typeof p.col !== "undefined") { occ[p.col + "," + p.row] = true; }
+    }
+    return occ;
+}
+
 // ===========================================================
 // フィルター済みアイテム取得
 // ===========================================================
@@ -1491,6 +1682,8 @@ function getFiltered() {
     var res = [];
     for (var i = 0; i < cfg.apps.length; i++) {
         var a = cfg.apps[i];
+        // ドックのアイテムも「すべて」には出す（検索でも引っかかるように）。
+        // 他のグループタブでは group が違うので下の行で自然に外れる。
         if (curTab !== "\u3059\u3079\u3066" && a.group !== curTab) { continue; }
         if (q !== "") {
             var nm = normalize(a.name  || "");
@@ -1507,6 +1700,17 @@ function getFiltered() {
 // ===========================================================
 function render() {
     var ct   = ge("content");
+    applyDockLayout();
+
+    // ドック側のキーボード状態を先に解決しておく。
+    // コンテンツ側の選択表示を出すかどうかがこれで決まるため。
+    lastDockList = dockList();
+    if (kbdInDock && !dockNavOn()) { kbdInDock = false; }
+    if (kbdInDock && kbdDockPos === null) {
+        var db = dockBounds();
+        kbdDockPos = { col: db.minCol, row: db.minRow };
+    }
+
     var list = getFiltered();
     lastFilteredList = list;
 
@@ -1535,6 +1739,7 @@ function render() {
 
     if (viewMode === "grid") { renderGrid(ct, list); }
     else                     { renderList(ct, list); }
+    renderDock();
     kbdMoved = false;
 }
 
@@ -1908,6 +2113,331 @@ function binaryToDataUrl(xhr, url) {
 }
 
 // ===========================================================
+// 座標配置グリッド（グループタブとドックで共有）
+// ===========================================================
+
+// セルの寸法。グリッドもドックも同じ大きさで描く
+function gridGeo() {
+    var cw = cfg.settings.gridCellWidth || 72;
+    return { cw: cw, cellH: cw + lblH, iw: Math.max(Math.floor(cw * 0.64), 20), lblW: cw - 2 };
+}
+
+// tabPositions の座標に置くセルを 1 つ作る
+function makeCoordCell(app, origI, geo) {
+    var cw = geo.cw, cellH = geo.cellH, iw = geo.iw;
+    var pos = app.tabPositions;
+
+    var cell = document.createElement("div");
+    cell.className      = "gcell";
+    cell.draggable      = true;
+    cell.style.position = "absolute";
+    cell.style.left     = (pos.col * (cw + 4)) + "px";
+    cell.style.top      = (pos.row * (cellH + 4)) + "px";
+    cell.style.width    = cw + "px";
+    cell.style.height   = cellH + "px";
+
+    var icon = makeIconEl(app, iw, "5px");
+    icon.className    = "gicon";
+    icon.style.width  = iw + "px";
+    icon.style.height = iw + "px";
+
+    var lbl = document.createElement("div");
+    lbl.className      = "glabel";
+    lbl.textContent    = app.name;
+    lbl.title          = app.name;
+    lbl.style.width    = geo.lblW + "px";
+    lbl.style.fontSize = Math.max(Math.floor(cw * 0.15), 9) + "px";
+
+    cell.appendChild(icon);
+    cell.appendChild(lbl);
+
+    cell.onclick = function () { launch(app); };
+
+    cell.oncontextmenu = function (e) {
+        var ev = e || window.event;
+        ev.preventDefault();
+        if (ev.stopPropagation) { ev.stopPropagation(); }
+        contextTargetIdx = origI;
+        showContextMenu("context-menu", ev.clientX, ev.clientY);
+        return false;
+    };
+
+    cell.ondragstart = function (e) {
+        dragSrc = origI;
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("Text", String(origI));
+        setTimeout(function () { cell.className = "gcell drag-src"; }, 0);
+    };
+    cell.ondragend = function () { dragSrc = -1; cell.className = "gcell"; };
+
+    // セル上のドラッグオーバーは許可のみ（ドロップは親コンテナで処理）
+    cell.ondragover = function (e) { e.preventDefault(); };
+
+    return cell;
+}
+
+// 座標配置のグリッドを組み立てて返す。
+// group はこの領域が受け持つグループ名、minRows は最低限確保する行数、
+// selIdx はキーボード選択中の list インデックス（無ければ -1）。
+// 戻り値: { el: 親要素, kbdCell: 選択中セル or null }
+function buildCoordGrid(list, group, geo, minRows, selIdx) {
+    var cw = geo.cw, cellH = geo.cellH;
+
+    // 1. 占有マップ構築（既に位置を持つアイテム）
+    var occupied = {};
+    for (var pi = 0; pi < list.length; pi++) {
+        var pp = list[pi].a.tabPositions;
+        if (pp && typeof pp.col !== "undefined") { occupied[pp.col + "," + pp.row] = true; }
+    }
+
+    // 2. 位置未割り当てのアイテムに自動割り当て
+    var needSave = false;
+    for (var ai = 0; ai < list.length; ai++) {
+        var aa = list[ai].a;
+        if (!aa.tabPositions || typeof aa.tabPositions.col === "undefined") {
+            aa.tabPositions = findFreePosNear(0, 0, occupied);
+            needSave = true;
+        }
+    }
+    if (needSave) { saveCfg(); }
+
+    // 3. コンテナサイズ計算
+    var cols = cfg.settings.gridCols || 5;
+    var maxC = 0, maxR = 0;
+    for (var si = 0; si < list.length; si++) {
+        var sp = list[si].a.tabPositions;
+        if (sp.col > maxC) { maxC = sp.col; }
+        if (sp.row > maxR) { maxR = sp.row; }
+    }
+    // 収まる場合は指定サイズちょうどにしてスクロールバーを出さない。
+    // はみ出す場合のみ余白 2 セル分を追加してスクロールを許可する。
+    var innerW = ((maxC < cols)    ? cols    : (maxC + 2)) * (cw + 4);
+    var innerH = ((maxR < minRows) ? minRows : (maxR + 2)) * (cellH + 4);
+
+    // 4. 絶対配置の親コンテナ（サイズは内容だけで決定し、外側の幅に依存させない）
+    var inner = document.createElement("div");
+    inner.style.position = "relative";
+    inner.style.width    = innerW + "px";
+    inner.style.height   = innerH + "px";
+
+    var kbdCell = null;
+    for (var ci = 0; ci < list.length; ci++) {
+        var cell = makeCoordCell(list[ci].a, list[ci].i, geo);
+        if (ci === selIdx) { cell.className = "gcell kbd-sel"; kbdCell = cell; }
+        inner.appendChild(cell);
+    }
+
+    // 5. 親コンテナへのドロップ（外部ファイル or 内部位置変更）
+    inner.ondragover = function (e) { e.preventDefault(); };
+    inner.ondrop     = function (e) { handleCoordDrop(e, inner, group, geo); };
+
+    return { el: inner, kbdCell: kbdCell };
+}
+
+// アイテムの無いセルにカーソルがあるときの枠。コンテンツ側とドックで共用する
+function appendGhostCell(inner, pos, geo) {
+    var ghost = document.createElement("div");
+    ghost.className      = "gcell kbd-sel";
+    ghost.style.position = "absolute";
+    ghost.style.left     = (pos.col * (geo.cw + 4)) + "px";
+    ghost.style.top      = (pos.row * (geo.cellH + 4)) + "px";
+    ghost.style.width    = geo.cw + "px";
+    ghost.style.height   = geo.cellH + "px";
+    inner.appendChild(ghost);
+    return ghost;
+}
+
+function handleCoordDrop(e, inner, group, geo) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    var cw = geo.cw, cellH = geo.cellH;
+    var rect = inner.getBoundingClientRect();
+    var tCol = Math.max(0, Math.floor((e.clientX - rect.left) / (cw + 4)));
+    var tRow = Math.max(0, Math.floor((e.clientY - rect.top)  / (cellH + 4)));
+
+    // 外部ドロップ（ファイル/URL）: 座標付きで処理
+    if (handleDropApp(e, tCol, tRow, group)) { dragSrc = -1; return; }
+
+    // 内部ドラッグ
+    if (dragSrc < 0) { return; }
+    var srcApp = cfg.apps[dragSrc];
+    dragSrc = -1;
+    if (!srcApp) { return; }
+
+    if (srcApp.group !== group) {
+        // 別グループからの移動はドックの出し入れだけ受け付ける。
+        // グループそのものの付け替えは編集ダイアログの役目なので触らない。
+        if (!dockOn() || (group !== DOCK_GROUP && srcApp.group !== DOCK_GROUP)) { return; }
+        srcApp.group        = group;
+        srcApp.tabPositions = findFreePosNear(tCol, tRow, occupiedMap(group, srcApp));
+        saveCfg();
+        renderTabs();
+        render();
+        return;
+    }
+
+    var srcPos = srcApp.tabPositions;
+    if (!srcPos || typeof srcPos.col === "undefined") { return; }
+    if (srcPos.col === tCol && srcPos.row === tRow) { return; }
+
+    // 移動先に別アイテムがあればスワップ
+    var occ2 = {};
+    for (var k = 0; k < cfg.apps.length; k++) {
+        if (cfg.apps[k] === srcApp) { continue; }
+        var tp = cfg.apps[k].tabPositions;
+        if (tp && typeof tp.col !== "undefined" && cfg.apps[k].group === group) {
+            occ2[tp.col + "," + tp.row] = k;
+        }
+    }
+    var tKey = tCol + "," + tRow;
+    if (occ2.hasOwnProperty(tKey)) {
+        cfg.apps[occ2[tKey]].tabPositions = { col: srcPos.col, row: srcPos.row };
+    }
+    srcPos.col = tCol;
+    srcPos.row = tRow;
+
+    saveCfg();
+    render();
+}
+
+// ===========================================================
+// ドック
+// 画面下部に固定する領域。タブを切り替えても中身は変わらない。
+// アイテムの持ち方は他と何も変わらず、group が "dock" というだけ。
+// ドックを使わない設定にすると、この group はただのグループとして
+// タブに現れる（分岐しているのは renderTabs / getFiltered のみ）。
+// 表示できる行数は全体の行数から取り分ける形なので、窓の大きさは変えない。
+// ===========================================================
+var DOCK_GROUP = "dock";
+
+function dockOn() { return !!cfg.settings.dockEnabled; }
+
+// ドックの高さ。行数ぶんのセル + 上下の余白 + 区切り線
+function dockHeight() {
+    return (cfg.settings.dockRows || 1) * (gridGeo().cellH + 4) + 12 + 1;
+}
+
+// ドックの表示状態と、それに合わせた #content の下端を反映する
+function applyDockLayout() {
+    var d = ge("dock");
+    if (!dockOn()) {
+        d.className = "";
+        d.innerHTML = "";
+        ge("content").style.bottom = "0";
+        return;
+    }
+    var h = dockHeight();
+    d.className    = "on";
+    d.style.height = h + "px";
+    ge("content").style.bottom = h + "px";
+}
+
+// ドックに並ぶアイテム。検索やタブの影響は受けない（常に dock グループの全部）
+function dockList() {
+    var res = [];
+    if (!dockOn()) { return res; }
+    for (var i = 0; i < cfg.apps.length; i++) {
+        if (cfg.apps[i].group === DOCK_GROUP) { res.push({ a: cfg.apps[i], i: i }); }
+    }
+    return res;
+}
+
+function renderDock() {
+    if (!dockOn()) { return; }
+    var d   = ge("dock");
+    var geo = gridGeo();
+    var sel = kbdInDock ? findIdxAtPos(lastDockList, kbdDockPos) : -1;
+
+    var savedSL = d.scrollLeft;
+    d.innerHTML = "";
+    var built = buildCoordGrid(lastDockList, DOCK_GROUP, geo, cfg.settings.dockRows || 1, sel);
+
+    // 空セルにカーソルがある場合はゴースト枠を描画（コンテンツ側と同じ）
+    var ghostCell = null;
+    if (kbdInDock && sel < 0 && kbdDockPos !== null) {
+        ghostCell = appendGhostCell(built.el, kbdDockPos, geo);
+    }
+
+    d.appendChild(built.el);
+    d.scrollLeft = savedSL;
+    if (kbdMoved) {
+        var target = built.kbdCell || ghostCell;
+        if (target) { scrollCellIntoView(target, d); }
+    }
+}
+
+// ===========================================================
+// ドックのキーボード操作
+// コンテンツの一番下からさらに下を押すとドックへ入り、
+// ドックの一番上からさらに上を押すとコンテンツへ戻る。
+// ドックの中の動き方はグループタブの座標配置モードと同じで、
+// アイテムの無いセルにもカーソルが止まる（ゴースト枠が出る）。
+// ===========================================================
+function dockNavOn() { return dockOn() && lastDockList.length > 0; }
+
+// ドック内でカーソルが動ける範囲。アイテムが占めている矩形（コンテンツ側と同じ考え方）
+function dockBounds() { return getGridBounds(lastDockList); }
+
+// col の位置からドックへ入る。入れなければ false（コンテンツ側で何もしない）
+function enterDock(col) {
+    if (!dockNavOn()) { return false; }
+    var b = dockBounds();
+    kbdInDock  = true;
+    kbdDockPos = { col: Math.max(b.minCol, Math.min(b.maxCol, col)), row: b.minRow };
+    kbdMoved   = true;
+    render();
+    return true;
+}
+
+// コンテンツ側へ戻る。選択位置は入る前のまま残してある
+function leaveDock() {
+    kbdInDock = false;
+    kbdMoved  = true;
+    render();
+}
+
+function moveInDock(key) {
+    if (!dockNavOn()) { leaveDock(); return; }
+    var b = dockBounds();
+    if (kbdDockPos === null) { kbdDockPos = { col: b.minCol, row: b.minRow }; }
+
+    var nc = kbdDockPos.col, nr = kbdDockPos.row;
+    if      (key === 37) { nc--; }
+    else if (key === 39) { nc++; }
+    else if (key === 38) { nr--; }
+    else if (key === 40) { nr++; }
+
+    // 一番上の行からさらに上 → コンテンツへ戻る
+    if (key === 38 && nr < b.minRow) { leaveDock(); return; }
+
+    nc = Math.max(b.minCol, Math.min(b.maxCol, nc));
+    nr = Math.max(b.minRow, Math.min(b.maxRow, nr));
+    if (nc !== kbdDockPos.col || nr !== kbdDockPos.row) {
+        kbdDockPos = { col: nc, row: nr };
+        kbdMoved   = true;
+        render();
+    }
+}
+
+// ドックの行数の選択肢を作り直す。
+// ドックは全体の行数から取り分けるので、それより少ない数しか選べない。
+// 全体の行数を減らしたときは、はみ出したぶんを詰める。
+function fillDockRows() {
+    var sel = ge("s-dockrows");
+    var max = Math.max(1, (cfg.settings.gridRows || 6) - 1);
+    if ((cfg.settings.dockRows || 1) > max) { cfg.settings.dockRows = max; }
+    sel.options.length = 0;
+    for (var n = 1; n <= max; n++) {
+        var o = document.createElement("option");
+        o.value = String(n);
+        o.text  = String(n);
+        sel.appendChild(o);
+    }
+    sel.value = String(cfg.settings.dockRows || 1);
+}
+
+// ===========================================================
 // グリッドビュー
 // ===========================================================
 function renderGrid(ct, list) {
@@ -1915,184 +2445,35 @@ function renderGrid(ct, list) {
     var savedST = ct.scrollTop;
     ct.innerHTML = "";
     var isAll = (curTab === "\u3059\u3079\u3066");
-    var cw    = cfg.settings.gridCellWidth || 72;
-    var iw    = Math.max(Math.floor(cw * 0.64), 20);
-    var cellH = cw + lblH;
-    var lblW  = cw - 2;
+    var geo   = gridGeo();
+    var cw    = geo.cw;
+    var iw    = geo.iw;
+    var cellH = geo.cellH;
+    var lblW  = geo.lblW;
+    // フォーカスがドックにある間はコンテンツ側の選択枠を出さない
+    var selShown = kbdInDock ? -1 : kbdIdx;
 
     if (!isAll) {
         // ======== 座標配置モード（「すべて」以外のタブ）========
+        // ドックが出ている間はそのぶん表示できる行が減るので、
+        // 収まっているのにスクロールバーが出ないよう最小行数から差し引く
+        var contentRows = (cfg.settings.gridRows || 6) - (dockOn() ? (cfg.settings.dockRows || 1) : 0);
+        if (contentRows < 1) { contentRows = 1; }
 
-        // 1. 占有マップ構築（既に位置を持つアイテム）
-        var occupied = {};
-        for (var pi = 0; pi < list.length; pi++) {
-            var pa = list[pi].a;
-            var pp = pa.tabPositions;
-            if (pp && typeof pp.col !== "undefined") { occupied[pp.col + "," + pp.row] = true; }
-        }
-
-        // 2. 位置未割り当てのアイテムに自動割り当て
-        var needSave = false;
-        for (var ai = 0; ai < list.length; ai++) {
-            var aa = list[ai].a;
-            if (!aa.tabPositions || typeof aa.tabPositions.col === "undefined") {
-                aa.tabPositions = findFreePosNear(0, 0, occupied);
-                needSave = true;
-            }
-        }
-        if (needSave) { saveCfg(); }
-
-        // 3. コンテナサイズ計算
-        var cols  = cfg.settings.gridCols || 5;
-        var rows  = cfg.settings.gridRows || 6;
-        var maxC = 0, maxR = 0;
-        for (var si = 0; si < list.length; si++) {
-            var sp = list[si].a.tabPositions;
-            if (sp.col > maxC) { maxC = sp.col; }
-            if (sp.row > maxR) { maxR = sp.row; }
-        }
-        // アイコンが設定グリッド内に収まる場合はグリッドサイズに合わせてスクロールバーを出さない。
-        // はみ出す場合のみ余白 2 セル分を追加してスクロールを許可する。
-        var innerW = ((maxC < cols) ? cols : (maxC + 2)) * (cw + 4);
-        var innerH = ((maxR < rows) ? rows : (maxR + 2)) * (cellH + 4);
-        // 4. 絶対配置の親コンテナ（サイズは内容だけで決定し、ct 幅に依存させない）
-        var inner = document.createElement("div");
-        inner.style.position = "relative";
-        inner.style.width    = innerW + "px";
-        inner.style.height   = innerH + "px";
-
-        var kbdCell = null;
-        for (var ci = 0; ci < list.length; ci++) {
-            (function (item, listIdx) {
-                var app = item.a, origI = item.i;
-                var pos = app.tabPositions;
-
-                var cell = document.createElement("div");
-                cell.className      = "gcell" + (listIdx === kbdIdx ? " kbd-sel" : "");
-                if (listIdx === kbdIdx) { kbdCell = cell; }
-                cell.draggable      = true;
-                cell.style.position = "absolute";
-                cell.style.left     = (pos.col * (cw + 4)) + "px";
-                cell.style.top      = (pos.row * (cellH + 4)) + "px";
-                cell.style.width    = cw + "px";
-                cell.style.height   = cellH + "px";
-
-                var icon = makeIconEl(app, iw, "5px");
-                icon.className = "gicon";
-                icon.style.width  = iw + "px";
-                icon.style.height = iw + "px";
-
-                var lbl = document.createElement("div");
-                lbl.className      = "glabel";
-                lbl.textContent    = app.name;
-                lbl.title          = app.name;
-                lbl.style.width    = lblW + "px";
-                lbl.style.fontSize = Math.max(Math.floor(cw * 0.15), 9) + "px";
-
-                cell.appendChild(icon);
-                cell.appendChild(lbl);
-
-                cell.onclick = (function (a) { return function () { launch(a); }; }(app));
-
-                cell.oncontextmenu = (function (idx) {
-                    return function (e) {
-                        var ev = e || window.event;
-                        ev.preventDefault();
-                        if (ev.stopPropagation) { ev.stopPropagation(); }
-                        ge("bg-context-menu").style.display = "none";
-                        contextTargetIdx = idx;
-                        var menu = ge("context-menu");
-                        menu.style.left = ev.clientX + "px";
-                        menu.style.top  = ev.clientY + "px";
-                        menu.style.display = "block";
-                        return false;
-                    };
-                }(origI));
-
-                // ドラッグ開始
-                cell.ondragstart = (function (idx, c) {
-                    return function (e) {
-                        dragSrc = idx;
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("Text", String(idx));
-                        setTimeout(function () { c.className = "gcell drag-src"; }, 0);
-                    };
-                }(origI, cell));
-
-                cell.ondragend = (function (c) {
-                    return function () { dragSrc = -1; c.className = "gcell"; };
-                }(cell));
-
-                // セル上のドラッグオーバーは許可のみ（ドロップは inner で処理）
-                cell.ondragover = function (e) { e.preventDefault(); };
-
-                inner.appendChild(cell);
-            }(list[ci], ci));
-        }
-
-        // 5. 内部コンテナへのドロップ（外部ファイル or 内部位置変更）
-        inner.ondragover = function (e) { e.preventDefault(); };
-        inner.ondrop = function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            var rect  = inner.getBoundingClientRect();
-            var mx    = e.clientX - rect.left;
-            var my    = e.clientY - rect.top;
-            var tCol  = Math.max(0, Math.floor(mx / (cw + 4)));
-            var tRow  = Math.max(0, Math.floor(my / (cellH + 4)));
-
-            // 外部ドロップ（ファイル/URL）: 座標付きで処理
-            if (handleDropApp(e, tCol, tRow)) { dragSrc = -1; return; }
-
-            // 内部ドラッグ: 座標変更
-            if (dragSrc < 0) { return; }
-            var srcApp = cfg.apps[dragSrc];
-            if (!srcApp || srcApp.group !== curTab) { dragSrc = -1; return; }
-            var srcPos = srcApp.tabPositions;
-            if (!srcPos || typeof srcPos.col === "undefined") { dragSrc = -1; return; }
-            if (srcPos.col === tCol && srcPos.row === tRow) { dragSrc = -1; return; }
-
-            // 移動先に別アイテムがあればスワップ
-            var occ2 = {};
-            for (var k = 0; k < cfg.apps.length; k++) {
-                if (cfg.apps[k] === srcApp) { continue; }
-                var tp = cfg.apps[k].tabPositions;
-                if (tp && typeof tp.col !== "undefined" && cfg.apps[k].group === curTab) {
-                    occ2[tp.col + "," + tp.row] = k;
-                }
-            }
-            var tKey = tCol + "," + tRow;
-            if (occ2.hasOwnProperty(tKey)) {
-                cfg.apps[occ2[tKey]].tabPositions = { col: srcPos.col, row: srcPos.row };
-            }
-            srcPos.col = tCol;
-            srcPos.row = tRow;
-
-            dragSrc = -1;
-            saveCfg();
-            render();
-        };
+        var built = buildCoordGrid(list, curTab, geo, contentRows, selShown);
+        var inner = built.el;
 
         // 空セルにカーソルがある場合はゴースト枠を描画
         var ghostCell = null;
-        if (kbdGridPos !== null && kbdIdx < 0) {
-            var ghost = document.createElement("div");
-            ghost.className      = "gcell kbd-sel";
-            ghost.style.position = "absolute";
-            ghost.style.left     = (kbdGridPos.col * (cw + 4)) + "px";
-            ghost.style.top      = (kbdGridPos.row * (cellH + 4)) + "px";
-            ghost.style.width    = cw + "px";
-            ghost.style.height   = cellH + "px";
-            inner.appendChild(ghost);
-            ghostCell = ghost;
+        if (kbdGridPos !== null && kbdIdx < 0 && !kbdInDock) {
+            ghostCell = appendGhostCell(inner, kbdGridPos, geo);
         }
 
         ct.appendChild(inner);
         ct.scrollLeft = savedSL;
         ct.scrollTop  = savedST;
-        if (kbdMoved && kbdCell)  { scrollCellIntoView(kbdCell,  ct); }
-        if (kbdMoved && ghostCell) { scrollCellIntoView(ghostCell, ct); }
+        if (kbdMoved && built.kbdCell) { scrollCellIntoView(built.kbdCell, ct); }
+        if (kbdMoved && ghostCell)     { scrollCellIntoView(ghostCell, ct); }
         return;
     }
 
@@ -2103,8 +2484,8 @@ function renderGrid(ct, list) {
             var app = item.a, origI = item.i;
 
             var cell = document.createElement("div");
-            cell.className    = "gcell" + (listIdx === kbdIdx ? " kbd-sel" : "");
-            if (listIdx === kbdIdx) { kbdCell = cell; }
+            cell.className    = "gcell" + (listIdx === selShown ? " kbd-sel" : "");
+            if (listIdx === selShown) { kbdCell = cell; }
             cell.draggable    = true;
             cell.style.width  = cw    + "px";
             cell.style.height = cellH + "px";
@@ -2131,12 +2512,8 @@ function renderGrid(ct, list) {
                     var ev = e || window.event;
                     ev.preventDefault();
                     if (ev.stopPropagation) ev.stopPropagation();
-                    ge("bg-context-menu").style.display = "none";
                     contextTargetIdx = idx;
-                    var menu = ge("context-menu");
-                    menu.style.left = ev.clientX + "px";
-                    menu.style.top = ev.clientY + "px";
-                    menu.style.display = "block";
+                    showContextMenu("context-menu", ev.clientX, ev.clientY);
                     return false;
                 };
             }(origI));
@@ -2220,24 +2597,21 @@ function renderList(ct, list) {
     tbl.appendChild(cg);
 
     var kbdRow = null;
+    var selShown = kbdInDock ? -1 : kbdIdx;
     for (var i = 0; i < list.length; i++) {
         (function (item, listIdx) {
             var app = item.a;
             var tr  = document.createElement("tr");
             tr.style.height = cfg.settings.listRowHeight + "px";
-            if (listIdx === kbdIdx) { tr.className = "kbd-sel"; kbdRow = tr; }
+            if (listIdx === selShown) { tr.className = "kbd-sel"; kbdRow = tr; }
             tr.onclick = (function (a) { return function () { launch(a); }; }(app));
             tr.oncontextmenu = (function (idx) {
                 return function (e) {
                     var ev = e || window.event;
                     ev.preventDefault();
                     if (ev.stopPropagation) ev.stopPropagation();
-                    ge("bg-context-menu").style.display = "none";
                     contextTargetIdx = idx;
-                    var menu = ge("context-menu");
-                    menu.style.left = ev.clientX + "px";
-                    menu.style.top = ev.clientY + "px";
-                    menu.style.display = "block";
+                    showContextMenu("context-menu", ev.clientX, ev.clientY);
                     return false;
                 };
             }(item.i));
@@ -2275,20 +2649,58 @@ function renderList(ct, list) {
 // ===========================================================
 // アイテム起動
 // ===========================================================
+
+// 起動時のウィンドウ状態。返す値は SW_* 定数そのもので、
+// WshShell.Run の intWindowStyle と Shell.ShellExecute の vShow の
+// どちらにもそのまま渡せる。最小化に 2 (SW_SHOWMINIMIZED) ではなく
+// 7 (SW_SHOWMINNOACTIVE) を使うのは、ショートカット(.lnk)の「最小化」と
+// 同じ挙動（フォーカスを奪わずに最小化で開く）に合わせるため。
+function showState(ws) {
+    if (ws === "max") { return 3; }
+    if (ws === "min") { return 7; }
+    return 1;
+}
+
+// 起動オプション（引数・作業フォルダ・管理者実行・ウィンドウ状態）を反映して起動する。
+//
+// 作業フォルダや管理者実行の指定があるときだけ Shell.ShellExecute を使う。
+// ShellExecute はパス・引数・作業フォルダを別々に受け取るのでクォートを
+// 組み立てずに済み、"runas" で昇格もできる。一方でオプションの無い
+// 既存アイテムは今までどおり wsh.Run で起動し、挙動を変えない。
+//
+// URL には引数も作業フォルダも管理者実行も意味が無いので無視する
+// （ShellExecute に "runas" で URL を渡すと失敗するだけになる）。
+function runTarget(app) {
+    var isUrl = /^https?:\/\//i.test(app.path);
+    var args  = isUrl ? "" : trim(app.args    || "");
+    var dir   = isUrl ? "" : trim(app.workDir || "");
+    var admin = !isUrl && app.runAs === "admin";
+    var show  = showState(app.winState);
+
+    if (admin || dir) {
+        var sh = new ActiveXObject("Shell.Application");
+        sh.ShellExecute(app.path, args, dir, admin ? "runas" : "open", show);
+        return;
+    }
+
+    var cmd = isUrl ? app.path : '"' + app.path + '"';
+    if (args) { cmd += " " + args; }
+    wsh.Run(cmd, show, false);
+}
+
 function launch(app) {
     if (!app.path) { return; }
     var action = (cfg.settings && cfg.settings.launchAction) || "minimize";
     try {
-        var cmd = (app.path.match(/^https?:\/\//)) ? app.path : '"' + app.path + '"';
         if (action === "minimize") {
             // 先に最小化してからアプリ起動することで、アプリが前面に表示される
             try {
                 wsh.AppActivate(document.title);
                 wsh.SendKeys("% n");
             } catch (e) {}
-            wsh.Run(cmd, 1, false);
+            runTarget(app);
         } else {
-            wsh.Run(cmd, 1, false);
+            runTarget(app);
             if (action === "close") { window.close(); }
         }
     } catch (e) {
@@ -2328,6 +2740,8 @@ function openSettings() {
     ge("s-position").value       = cfg.settings.windowPosition || "center";
     ge("s-fontsize").value       = cfg.settings.fontSize || "small";
     ge("s-listheight").value     = String(cfg.settings.listRowHeight || 30);
+    ge("s-dock").value           = cfg.settings.dockEnabled ? "true" : "false";
+    fillDockRows();
     ge("s-start-tab").value      = cfg.settings.startTab || "all";
     ge("s-launch-action").value  = cfg.settings.launchAction || "minimize";
     ge("s-topmost").value        = cfg.settings.topmost ? "true" : "false";
@@ -2511,7 +2925,7 @@ function parseCLaunchIni(path) {
             }
             if (afterPages && currentPage && /^Btn\d{3}$/.test(sec)) {
                 finishItem();
-                currentItem = { name: "", file: "" };
+                currentItem = { name: "", file: "", param: "", dir: "" };
                 inBtn = true;
                 continue;
             }
@@ -2529,7 +2943,9 @@ function parseCLaunchIni(path) {
             pagesCount = parseInt(val, 10) || 0;
         } else if (inBtn && currentItem) {
             if (key === "Name") { currentItem.name = val; }
-            else if (key === "File") { currentItem.file = val; }
+            else if (key === "File")  { currentItem.file  = val; }
+            else if (key === "Param") { currentItem.param = val; }   // 引数
+            else if (key === "Dir")   { currentItem.dir   = val; }   // 作業フォルダ
         } else if (currentPage && !inBtn) {
             if (key === "Name") { currentPage.name = val; }
         }
@@ -2542,7 +2958,11 @@ function parseCLaunchIni(path) {
         for (var b = 0; b < pg.items.length; b++) {
             var btn = pg.items[b];
             if (!btn.file) { continue; }
-            apps.push({ name: btn.name || btn.file, path: btn.file, iconPath: "", group: pg.name });
+            var item = { name: btn.name || btn.file, path: btn.file, iconPath: "", group: pg.name };
+            // 起動オプションは設定されているものだけ持たせる（dlgSave と同じ方針）
+            if (btn.param) { item.args    = btn.param; }
+            if (btn.dir)   { item.workDir = btn.dir; }
+            apps.push(item);
         }
     }
     return apps;
@@ -2559,7 +2979,9 @@ function dlgOpenSel() {
 // ===========================================================
 // アイテム追加/編集ダイアログ
 // ===========================================================
-function dlgOpen(idx) {
+// defGroup を渡すと、新規追加のときのグループ欄の初期値になる
+// （ドックの余白から追加したときに "dock" と出すため）。省略時は今開いているタブ。
+function dlgOpen(idx, defGroup) {
     dlgIdx = idx;
     ge("dlg-title").textContent = (idx < 0)
         ? "\u30a2\u30d7\u30ea\u8ffd\u52a0"    // アイテム追加
@@ -2567,10 +2989,36 @@ function dlgOpen(idx) {
     var app = (idx >= 0) ? cfg.apps[idx] : null;
     ge("d-name").value  = app ? (app.name      || "") : "";
     ge("d-path").value  = app ? (app.path      || "") : "";
-    ge("d-group").value = app ? (app.group     || "") : (curTab !== "すべて" ? curTab : "");
+    ge("d-group").value = app ? (app.group     || "")
+                              : ((typeof defGroup === "string" && defGroup !== "") ? defGroup
+                                 : ((curTab !== "すべて") ? curTab : ""));
     ge("d-icon").value  = app ? (app.iconPath  || "") : "";
+
+    ge("d-args").value     = app ? (app.args    || "") : "";
+    ge("d-workdir").value  = app ? (app.workDir || "") : "";
+    ge("d-runas").value    = (app && app.runAs === "admin") ? "admin" : "normal";
+    ge("d-winstate").value = (app && (app.winState === "max" || app.winState === "min"))
+                             ? app.winState : "normal";
+    // 何か設定済みのアイテムは開いた状態で見せる。畳んだままだと
+    // 引数や管理者実行が付いていることに気付けないため
+    setAdvanced(hasAdvanced(app));
+
     setOverlay("dlg-ov", true);
     ge("d-name").focus();
+}
+
+// 起動オプションが既定から外れているか
+function hasAdvanced(app) {
+    if (!app) { return false; }
+    return !!(trim(app.args || "") || trim(app.workDir || "")
+              || app.runAs === "admin"
+              || app.winState === "max" || app.winState === "min");
+}
+
+function setAdvanced(on) {
+    advOpen = !!on;
+    ge("dlg-adv").className        = advOpen ? "open" : "";
+    ge("d-adv-toggle").textContent = advOpen ? "詳細設定 ▲" : "詳細設定 ▼";
 }
 
 function dlgSave() {
@@ -2578,6 +3026,10 @@ function dlgSave() {
     var path  = trim(ge("d-path").value);
     var group = trim(ge("d-group").value);
     var icon  = trim(ge("d-icon").value);
+    var args    = trim(ge("d-args").value);
+    var workDir = trim(ge("d-workdir").value);
+    var runAs   = ge("d-runas").value;
+    var winSt   = ge("d-winstate").value;
 
     if (!name || !path) {
         msgAlert("\u8868\u793a\u540d\u3068\u30d1\u30b9\u306f\u5fc5\u9808\u3067\u3059\u3002");
@@ -2587,6 +3039,12 @@ function dlgSave() {
     // 描画時に remoteIconUrl() がファビコンを導出し、取得できたら data URL として
     // 保存されるので、config にリモート URL を書き込む必要はない。
     var obj = { name: name, path: path, iconPath: icon, group: group };
+    // 起動オプションは既定から外れているものだけ書く。
+    // 全アイテムに空の項目を持たせると config.json が無駄に膨らむため
+    if (args)    { obj.args    = args; }
+    if (workDir) { obj.workDir = workDir; }
+    if (runAs === "admin")                 { obj.runAs    = "admin"; }
+    if (winSt === "max" || winSt === "min") { obj.winState = winSt; }
     if (dlgIdx < 0) {
         cfg.apps.push(obj);
         selIdx = cfg.apps.length - 1;
@@ -2629,21 +3087,35 @@ function resizeToGrid() {
     try { window.resizeTo(Math.max(targetW, 280), Math.max(targetH, 200)); } catch (e) {}
 }
 
+// Windows 10/11 の窓は、左右と下に「見えない」リサイズ用の余白を持っている。
+// GetWindowRect（= moveTo が扱う座標）には含まれるが描画はされないので、
+// x=0 に置くと見た目の左端はその幅だけ内側になる。上端には余白が無いため、
+// 上下は画面の縁と揃うのに左右だけ離れて見える。
+//
+// 余白の幅は「枠の総幅 - 見えている枠線 1px」。枠の総幅は左右で等しいので
+// (outerWidth - clientWidth) / 2 で求まる（実測: 総幅 8px、余白 7px）。
+function invisibleBorder() {
+    var frame = Math.floor((window.outerWidth - document.documentElement.clientWidth) / 2);
+    return Math.max(0, frame - 1);
+}
+
 function positionToWindow() {
     var pos = cfg.settings.windowPosition || "center";
     var screenW = screen.availWidth;
     var screenH = screen.availHeight;
     var winW = window.outerWidth;
     var winH = window.outerHeight;
+    // 端に寄せるときだけ、見えない余白のぶん外側へずらして見た目を縁に揃える
+    var b = invisibleBorder();
     var x, y;
     if (pos === "topLeft") {
-        x = 0; y = 0;
+        x = -b; y = 0;
     } else if (pos === "topRight") {
-        x = screenW - winW; y = 0;
+        x = screenW - winW + b; y = 0;
     } else if (pos === "bottomLeft") {
-        x = 0; y = screenH - winH;
+        x = -b; y = screenH - winH + b;
     } else if (pos === "bottomRight") {
-        x = screenW - winW; y = screenH - winH;
+        x = screenW - winW + b; y = screenH - winH + b;
     } else { // center
         x = (screenW - winW) / 2; y = (screenH - winH) / 2;
     }
@@ -2664,19 +3136,88 @@ function psq(s) { return String(s).replace(/'/g, "''"); }
 // 埋め込みスクリプトを取り出し、プレースホルダを差し替えて非表示起動する。
 // 置換は split/join で行う（RegExp だと置換値の $ や \ が特別扱いされるため）。
 //
-// スクリプトは %TEMP% に書き出して -File で渡す。-EncodedCommand だと
-// コマンドライン全体が 32767 文字の上限に掛かるため（Base64 は UTF-16 の
-// バイト列を符号化するので、元のスクリプトの約 2.7 倍に膨らむ）。
-// スクリプト ID ごとに固定の名前を使うので、ファイルが増え続けることはない。
-// HTA 自体は 1 ファイルのままで、この .ps1 は実行のたびに作り直される。
+// スクリプトは -EncodedCommand（Base64 化した UTF-16LE）で直接渡す。%TEMP%
+// に .ps1 を書き出さないので、配布物・作業ツリーを汚さず、ドロップした
+// スクリプトを他プロセスに差し替えられる隙も無い。
+// ただし -EncodedCommand はコマンドライン全体が 32767 文字の上限に掛かる。
+// Base64 は UTF-16 のバイト列を符号化するので素のスクリプトの約 2.7 倍に
+// 膨らむため、psMinify() でコメント・空行・字下げを落としてから符号化する
+// （原文の可読性は保ったまま、実行直前にだけ縮める）。ヒアストリング
+// （@'...'@、中の C# ソース）は中身を保つ必要があるので触らない。
+// IT ポリシーやセキュリティ製品（EDR・資産管理ソフト等）が「mshta から
+// powershell.exe を起動する」動作を遮断していると、下の wsh.Run が COM 例外に
+// なる。ここで拾わないと「このスクリプトはITポリシーによってブロックされて
+// います。」等のスクリプトエラーダイアログになり、ランチャが使えなくなる。
+// PowerShell 前提の機能（最前面化・カーソル起動・ショートカットキー）は付加
+// 機能で、本体（アイテム起動）は PS を使わないため、失敗しても本体は動かせる。
+//
+// このブロックは間欠的で、エラーが出た後の呼び出しでは通ることがある
+// （初回のみスキャン等で弾かれる等）。そのため一度失敗しても以後の起動を
+// 諦めず、呼ばれるたびに毎回試す。psBlocked は「これまでに一度でも弾かれた」
+// という記録で、案内表示にだけ使い、再試行の抑止には使わない。
+var psBlocked = false;   // これまでに一度でも起動を弾かれたか（案内表示用）
+var psBlockReason = "";  // 表示用の理由文字列（COM 例外の description 等）
+
+// PowerShell スクリプトを縮める。実行に不要な行頭コメント（# で始まる行）・
+// 空行・各行の前後の空白だけを落とす、保守的な最小化。行内コメントは文字列中
+// の # と区別が付かないため触らない。ヒアストリング（行末が @' で開き、行頭
+// '@ で閉じる）の中身は字下げごと原文のまま残す（PowerShell の仕様上、閉じ
+// デリミタは行頭になければならず、中の C# ソースも改変できないため）。
+function psMinify(src) {
+    var lines = src.split(/\r\n|\r|\n/);
+    var out = [];
+    var inHere = false;
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+        if (inHere) {
+            out.push(line);
+            if (/^'@/.test(line) || /^"@/.test(line)) { inHere = false; }
+            continue;
+        }
+        if (/@'\s*$/.test(line) || /@"\s*$/.test(line)) {
+            out.push(line);
+            inHere = true;
+            continue;
+        }
+        var t = trim(line);
+        if (t === "" || t.charAt(0) === "#") { continue; }
+        out.push(t);
+    }
+    return out.join("\n");
+}
+
+// 文字列を UTF-16LE の Base64（BOM 無し）にする。PowerShell の
+// -EncodedCommand が受け付ける形式。ADODB.Stream で UTF-16LE のバイト列を
+// 作り（"unicode" は先頭に BOM FF FE が付くので 2 バイト読み飛ばす）、
+// MSXML の bin.base64 ノードで符号化する。出力に混じる改行・空白は取り除く。
+function psEncode(text) {
+    var st = new ActiveXObject("ADODB.Stream");
+    st.Type = 2; st.Charset = "unicode"; st.Open();
+    st.WriteText(text);
+    st.Position = 0; st.Type = 1; st.Position = 2; // BOM をスキップ
+    var bytes = st.Read();
+    st.Close();
+    var dom = new ActiveXObject("MSXML2.DOMDocument.6.0");
+    var node = dom.createElement("b");
+    node.dataType = "bin.base64";
+    node.nodeTypedValue = bytes;
+    return String(node.text).replace(/[\r\n\t ]+/g, "");
+}
+
+// 起動を試み、成功したら true、弾かれたら false を返す。
 function runPs(scriptId, vars) {
     var src = document.getElementById(scriptId).text;
     for (var k in vars) { src = src.split(k).join(vars[k]); }
-    var path = TMPDIR + "\\HTALauncher_" + scriptId + ".ps1";
-    // BOM 付き UTF-8 で書く。BOM が無いと PowerShell 5.1 は
-    // システムの ANSI コードページとみなし、日本語コメントが化ける
-    writeUtf8(path, src);
-    wsh.Run('powershell -NoProfile -NoLogo -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + path + '"', 0, false);
+    var enc = psEncode(psMinify(src));
+    try {
+        wsh.Run('powershell -NoProfile -NoLogo -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ' + enc, 0, false);
+        return true;
+    } catch (e) {
+        // ActiveX 由来の例外は message が空で description 側に入ることがある
+        psBlocked = true;
+        psBlockReason = e.message || e.description || "";
+        return false;
+    }
 }
 
 // ===========================================================
@@ -2741,8 +3282,15 @@ function updateHotkeyStatus() {
         el.className = "shint err";
         el.innerHTML = "他のアプリが使用中のため登録できませんでした。別のキーを試してください。";
     } else if (stat === "ok") {
+        // 実際に登録できていれば、過去に一度弾かれていても「有効」を優先する
         el.className = "shint";
         el.innerHTML = "有効です。";
+    } else if (psBlocked) {
+        // これまでに PowerShell 起動が弾かれたことがある場合。ショートカットキー
+        // だけでなく最前面表示・カーソル起動も同じ理由で不安定になるため案内する。
+        // ブロックは間欠的で、開き直すと通ることもあるので断定はしない。
+        el.className = "shint err";
+        el.innerHTML = "この PC の IT ポリシー（またはセキュリティソフト）が PowerShell の起動をブロックすることがあり、ショートカットキー・最前面表示・カーソル位置での起動が働かない場合があります。うまく動かないときは開き直すと通ることがあります。";
     } else {
         el.className = "shint";
         el.innerHTML = "";
