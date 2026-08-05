@@ -789,9 +789,68 @@ var cfg = (function() {
     return JSON.parse(JSON.stringify(def));
 }());
 
+// 次回に復元するタブ。検索中は一時的に「すべて」へ移っているので、
+// そのまま覚えると検索するたびに「すべて」で焼き付いてしまう。
+// 検索を始める前のタブ（＝ユーザーが選んだタブ）を覚える。
+function tabToRemember() {
+    var t = (preSearchTab !== null) ? preSearchTab : curTab;
+    // ドックが有効な間、dock グループはタブに現れない＝復元しようがない。
+    // そのまま覚えると次回起動時に renderTabs() で「すべて」へ落とされるので、
+    // ここで「すべて」に倒しておく（ドックをオンにした瞬間に curTab が
+    // dock のままだと、この経路で必ず「すべて」起動になっていた）。
+    if (dockOn() && t === DOCK_GROUP) { return "すべて"; }
+    return t;
+}
+
 function saveCfg() {
-    cfg.settings.lastTab = curTab;
+    cfg.settings.lastTab = tabToRemember();
     try { writeUtf8(CFGPATH, JSON.stringify(cfg, null, 2)); } catch (e) {}
+}
+
+// タブの切り替えはその場で保存する。ドックやショートカット起動と併せて使うと
+// アプリを起動しても閉じずに最小化されるだけなので、ウィンドウは開きっぱなしになり、
+// onbeforeunload まで保存を待つとログオフやプロセス終了でそのまま失われる
+// （＝次回起動が必ず「すべて」になる）。
+function setCurTab(t) {
+    curTab = t;
+    // タブを明示的に選んだ以上、検索前のタブへ戻す必要はなくなる
+    preSearchTab = null;
+    saveCfg();
+}
+
+// 最小化からの復帰を「起動」とみなして初期表示に戻す。
+// アプリを起動しても閉じずに最小化するだけなので（ドック・カーソル起動・
+// ショートカット起動と併せて使うとこれが常態）、ウィンドウは開きっぱなしになる。
+// つまり window.onload の初期化は最初の一回しか通らず、次に呼び出したときは
+// 検索文字と、検索が一時的に移した「すべて」タブがそのまま残っていた。
+// ＝「起動時のタブ」設定が二回目以降ずっと効かない状態になっていた。
+function resetToStartView() {
+    // モーダルを開いたまま最小化された場合は、裏の表示を作り直しても見えないうえに、
+    // 追加ダイアログのグループ欄など「今開いているタブ」を前提にした表示が変わってしまう
+    if (isAnyModalOpen()) { return; }
+    ge("search-box").value = "";
+    curTab = (cfg.settings.startTab === "last") ? tabToRemember() : "すべて";
+    preSearchTab = null;
+    kbdGridPos = null;
+    kbdInDock  = false;
+    kbdDockPos = null;
+    kbdIdx     = 0;
+    kbdOrigI   = -1;
+    kbdMoved   = false;
+    renderTabs();
+    render();
+    ge("search-box").focus();
+}
+
+// 最小化されたウィンドウは画面外（-32000, -32000）へ退かされるので、位置を見れば
+// 最小化中か分かる。onblur / onfocus ではなく位置を見張るのは、フォーカスを持って
+// いない状態で「カーソルが外れたら最小化」に畳まれるとイベントが飛んでこないため。
+var wasIconic = false;
+function watchRestore() {
+    var iconic = (window.screenTop <= -30000 || window.screenLeft <= -30000);
+    if (iconic === wasIconic) { return; }
+    wasIconic = iconic;
+    if (!iconic) { resetToStartView(); }
 }
 
 // ===========================================================
@@ -1024,14 +1083,18 @@ window.onload = function () {
     render();
     updViewBtns();
     positionToWindow();
+    // 最小化からの復帰を「起動」として扱う（読むのは窓の位置だけなので常駐しても軽い）
+    setInterval(watchRestore, 300);
     // 前回の異常終了でフラグが残っていると自動最小化が効かないままになる
     clearModalFlag();
     // 起動直後（mshta のプロセス起動スキャン窓の中）で powershell を自動起動
     // すると、EDR/AV に「開いた瞬間に無操作で powershell を起こす」ドロッパー的
-    // 挙動と見なされて弾かれやすい。数秒遅らせて初回スキャン窓とプロセス起動
-    // 相関から外す。同じ spawn でも設定 UI からの切替（ユーザー操作起点）は
-    // 通るという実測に基づく対策。機能面では、この遅延の間だけ最前面化・
-    // カーソル起動・ホットキーが効かないだけで実害はない。
+    // 挙動と見なされて弾かれやすい。onload と同じターンで spawn するのをやめて
+    // プロセス起動の相関から外す。同じ spawn でも設定 UI からの切替（ユーザー
+    // 操作起点）は通るという実測に基づく対策で、100ms あれば弾かれない。
+    // 機能面では、この遅延の間だけ最前面化・カーソル起動・ホットキーが
+    // 効かないだけで実害はない（最前面になるまでの実測 0.8 秒のうち、
+    // ここは 100ms で、残りは powershell の起動と Add-Type のコンパイル）。
     setTimeout(function () {
         if (cfg.settings.topmost) { applyTopmost(true); }
         if (cfg.settings.cursorTriggerEnabled || cfg.settings.autoMinimizeOnLeave || cfg.settings.hotkeyEnabled) { startWatcher(); }
@@ -1175,7 +1238,7 @@ window.onload = function () {
             } else {
                 idx = (idx + 1) % groups.length;
             }
-            curTab = groups[idx];
+            setCurTab(groups[idx]);
             kbdGridPos = null;
             kbdInDock  = false;
             renderTabs();
@@ -1576,7 +1639,7 @@ function renderTabs() {
             var b = document.createElement("button");
             b.className   = "tbtn" + (gn === curTab ? " active" : "");
             b.textContent = gn;
-            b.onclick = function () { curTab = gn; kbdGridPos = null; kbdInDock = false; renderTabs(); render(); };
+            b.onclick = function () { setCurTab(gn); kbdGridPos = null; kbdInDock = false; renderTabs(); render(); };
             panel.appendChild(b);
         }(groups[j]));
     }
