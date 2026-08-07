@@ -342,13 +342,6 @@ body.light #msg-text { color: #1E1E1E; }
     <div id="tab-act" class="stab">
       <div class="cfg-inner">
         <div class="srow">
-          <span class="slbl">起動時のタブ</span>
-          <select id="s-start-tab">
-            <option value="all" >すべて</option>
-            <option value="last">最後に開いていたタブ</option>
-          </select>
-        </div>
-        <div class="srow">
           <span class="slbl">初期表示位置</span>
           <select id="s-position">
             <option value="topLeft">左上</option>
@@ -730,7 +723,7 @@ var cfg = (function() {
     var def = { apps: [], settings: { theme: "dark", defaultView: "grid",
                                       gridCellWidth: 72, gridCols: 5, gridRows: 6, windowPosition: "center", fontSize: "small", listRowHeight: 30,
                                       dockEnabled: false, dockRows: 1,
-                                      startTab: "all", lastTab: "すべて", launchAction: "minimize", topmost: false,
+                                      lastTab: "すべて", launchAction: "minimize", topmost: false,
                                       cursorTriggerEnabled: false, cursorTriggerPosition: "bottomRight",
                                       autoMinimizeOnLeave: false,
                                       hotkeyEnabled: false, hotkey: defHotkey() } };
@@ -752,7 +745,9 @@ var cfg = (function() {
             if (!s.windowPosition || ["topLeft", "topRight", "bottomLeft", "bottomRight", "center"].indexOf(s.windowPosition) < 0) { s.windowPosition = "center"; }
             if (!s.fontSize || ["small", "medium", "large"].indexOf(s.fontSize) < 0) { s.fontSize = "small"; }
             if (!s.listRowHeight || s.listRowHeight < 20) { s.listRowHeight = 30; }
-            if (s.startTab !== "all" && s.startTab !== "last") { s.startTab = "all"; }
+            // 「起動時のタブ」設定は廃止（常に前回のタブを復元する）。
+            // 旧 config に残っていても使わないので落としておく
+            delete s.startTab;
             if (!s.lastTab) { s.lastTab = "すべて"; }
             if (!s.launchAction || ["close", "minimize", "none"].indexOf(s.launchAction) < 0) { s.launchAction = "minimize"; }
             if (typeof s.topmost !== "boolean") { s.topmost = false; }
@@ -818,18 +813,19 @@ function setCurTab(t) {
     saveCfg();
 }
 
-// 最小化からの復帰を「起動」とみなして初期表示に戻す。
+// 最小化からの復帰時に検索状態だけをリセットする。
 // アプリを起動しても閉じずに最小化するだけなので（ドック・カーソル起動・
 // ショートカット起動と併せて使うとこれが常態）、ウィンドウは開きっぱなしになる。
 // つまり window.onload の初期化は最初の一回しか通らず、次に呼び出したときは
 // 検索文字と、検索が一時的に移した「すべて」タブがそのまま残っていた。
-// ＝「起動時のタブ」設定が二回目以降ずっと効かない状態になっていた。
+// タブ自体は動かさない（＝ユーザーが自分で切り替えたタブのまま復帰する）。
+// 検索中だった場合だけ、検索が一時的に移した「すべて」から元のタブへ戻す。
 function resetToStartView() {
     // モーダルを開いたまま最小化された場合は、裏の表示を作り直しても見えないうえに、
     // 追加ダイアログのグループ欄など「今開いているタブ」を前提にした表示が変わってしまう
     if (isAnyModalOpen()) { return; }
     ge("search-box").value = "";
-    curTab = (cfg.settings.startTab === "last") ? tabToRemember() : "すべて";
+    curTab = tabToRemember();
     preSearchTab = null;
     kbdGridPos = null;
     kbdInDock  = false;
@@ -857,9 +853,9 @@ function watchRestore() {
 // 状態変数
 // ===========================================================
 var viewMode  = cfg.settings.defaultView;
-var curTab    = (cfg.settings.startTab === "last" && cfg.settings.lastTab)
-                ? cfg.settings.lastTab
-                : "すべて";
+// 起動時は常に前回開いていたタブから始める（該当グループが無くなっていた場合は
+// renderTabs() が「すべて」へ倒す）
+var curTab    = cfg.settings.lastTab || "すべて";
 var selIdx    = -1;
 var dlgIdx    = -1;
 var advOpen   = false;  // 追加/編集ダイアログの詳細設定が開いているか
@@ -944,7 +940,6 @@ window.onload = function () {
     ge("claunch-ini-picker").onchange = function () { claunchImportLoad(this); };
 
     // 動作タブ：変更即保存
-    ge("s-start-tab").onchange    = function () { cfg.settings.startTab     = this.value; saveCfg(); };
     ge("s-position").onchange     = function () { cfg.settings.windowPosition = this.value; saveCfg(); positionToWindow(); };
     ge("s-launch-action").onchange = function () { cfg.settings.launchAction = this.value; saveCfg(); };
     ge("s-topmost").onchange      = function () {
@@ -2805,7 +2800,6 @@ function openSettings() {
     ge("s-listheight").value     = String(cfg.settings.listRowHeight || 30);
     ge("s-dock").value           = cfg.settings.dockEnabled ? "true" : "false";
     fillDockRows();
-    ge("s-start-tab").value      = cfg.settings.startTab || "all";
     ge("s-launch-action").value  = cfg.settings.launchAction || "minimize";
     ge("s-topmost").value        = cfg.settings.topmost ? "true" : "false";
     ge("s-cursor-trigger").value = cfg.settings.cursorTriggerEnabled ? "true" : "false";
