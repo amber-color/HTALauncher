@@ -3154,53 +3154,82 @@ function neededClientSize() {
 // の単位（物理ピクセル）と clientWidth の単位（CSS px）が一致しない。両者を混ぜて
 // 計算すると、ノート PC と外付けディスプレイのように拡大率の違う画面を行き来した
 // ときに窓が中身より小さくなり、不要なスクロールバーが出ていた。
-// そこで、一度リサイズしてみて clientWidth/Height の実際の変化量から換算率を測り、
-// 必要な CSS px に届くまで数回詰める（換算率の初期値は DPI から推定する）。
-var lastFitSig = "";
-function resizeToGrid() {
+// そこで、不足分を DPI から求めた換算率で物理ピクセルに直してリサイズし、
+// clientWidth/Height を見ながら必要な CSS px に届くまで詰める。
+//
+// 拡大率の違う画面へ移した直後は、窓の外寸が変わっても中身の寸法（clientWidth）の
+// 反映が遅れることがある。古い値のまま詰め続けると同じ不足分を何度も足して窓が
+// 膨らむので、中身が追従しなかったらその場では打ち切り、続きは watchDisplay が
+// 次の周期で（反映後の値を見て）行う。行き過ぎた場合も同じ経路で縮め直される。
+var FIT_TRIES_MAX = 6;  // 収束しないときに watchDisplay が試す回数の上限
+var fitTries      = 0;
+var lastScreenSig = "";
+var fitReposition = false;  // 画面が変わったあと、合うまで表示位置も置き直すか
+
+// 端数で 1px 足りずにスクロールが出ないよう、必要量 +0〜3px に収まれば良しとする
+function fitsW(need) { var c = document.documentElement.clientWidth;  return c >= need.w && c <= need.w + 3; }
+function fitsH(need) { var c = document.documentElement.clientHeight; return c >= need.h && c <= need.h + 3; }
+
+// 実測した換算率のうち、あり得る範囲のものだけを採用する。
+// 端数のせいで中身が 1〜2px しか動かなかったときの値は大きく外れるため
+function pickRatio(dOuter, dClient, fallback) {
+    if (Math.abs(dClient) < 8) { return fallback; }
+    var k = dOuter / dClient;
+    return (k >= 0.5 && k <= 3) ? k : fallback;
+}
+
+function fitWindow() {
     var need = neededClientSize();
     var de   = document.documentElement;
     var kx = (screen.deviceXDPI && screen.logicalXDPI) ? screen.deviceXDPI / screen.logicalXDPI : 1;
     var ky = (screen.deviceYDPI && screen.logicalYDPI) ? screen.deviceYDPI / screen.logicalYDPI : kx;
     for (var i = 0; i < 4; i++) {
+        var okW = fitsW(need), okH = fitsH(need);
+        if (okW && okH) { return; }
         var cw0 = de.clientWidth, ch0 = de.clientHeight;
-        // 端数で 1px 足りずにスクロールが出ないよう、必要量 +0〜3px に収まれば良しとする
-        var okW = (cw0 >= need.w && cw0 <= need.w + 3);
-        var okH = (ch0 >= need.h && ch0 <= need.h + 3);
-        if (okW && okH) { break; }
-        var ow = window.outerWidth, oh = window.outerHeight;
+        var ow  = window.outerWidth, oh = window.outerHeight;
         var tw = okW ? ow : Math.round(ow + (need.w + 1 - cw0) * kx);
         var th = okH ? oh : Math.round(oh + (need.h + 1 - ch0) * ky);
-        try { window.resizeTo(Math.max(tw, 280), Math.max(th, 200)); } catch (e) { break; }
-        // 実際に動いた量から換算率を測り直す
-        if (window.outerWidth  !== ow && de.clientWidth  !== cw0) { kx = (window.outerWidth  - ow) / (de.clientWidth  - cw0); }
-        if (window.outerHeight !== oh && de.clientHeight !== ch0) { ky = (window.outerHeight - oh) / (de.clientHeight - ch0); }
-        // 下限や画面の制約でこれ以上変わらないなら打ち切る
-        if (window.outerWidth === ow && window.outerHeight === oh) { break; }
+        try { window.resizeTo(Math.max(tw, 280), Math.max(th, 200)); } catch (e) { return; }
+        var dOW = window.outerWidth - ow, dOH = window.outerHeight - oh;
+        var dCW = de.clientWidth - cw0,   dCH = de.clientHeight - ch0;
+        // 下限や画面の制約でこれ以上変わらない
+        if (dOW === 0 && dOH === 0) { return; }
+        // 窓は変わったのに中身が追従していない＝反映待ち。続きは watchDisplay へ
+        if ((dOW !== 0 && dCW === 0) || (dOH !== 0 && dCH === 0)) { return; }
+        kx = pickRatio(dOW, dCW, kx);
+        ky = pickRatio(dOH, dCH, ky);
     }
-    lastFitSig = fitSignature();
 }
 
-// 窓の大きさを合わせ直す必要があるかの判定材料。拡大率・作業領域・中身の大きさの
-// どれかが前回合わせたときから変わっていたら、ディスプレイが切り替わったとみなす
-function fitSignature() {
-    var de = document.documentElement;
-    return [screen.deviceXDPI, screen.availWidth, screen.availHeight,
-            de.clientWidth, de.clientHeight].join(",");
+// 設定の変更などで窓の大きさを合わせ直す（収束しなければ watchDisplay が続ける）
+function resizeToGrid() {
+    fitTries = 0;
+    fitWindow();
 }
 
 // ディスプレイの切り替え（拡大率の違う画面への移動・外付けディスプレイの抜き差し）に
-// 追従する。watchRestore と同じタイマーから呼ばれ、最小化中は何もしない
-// （最小化中に切り替わった場合は、復帰した直後のこの呼び出しで合わせ直す）。
+// 追従する。定期的に呼ばれ、中身が窓に収まっていなければ合わせ直す。
+// 最小化中は何もしない（最小化中に切り替わった場合は、復帰した直後に合わせ直す）。
 function watchDisplay() {
     if (wasIconic) { return; }
-    var sig = fitSignature();
-    if (sig === lastFitSig) { return; }
-    var prev = lastFitSig.split(",");
-    resizeToGrid();
-    // 画面そのもの（拡大率・作業領域）が変わったときだけ、設定の表示位置へ置き直す
-    var cur = lastFitSig.split(",");
-    if (prev[0] !== cur[0] || prev[1] !== cur[1] || prev[2] !== cur[2]) { positionToWindow(); }
+    var sig = [screen.deviceXDPI, screen.availWidth, screen.availHeight].join(",");
+    if (sig !== lastScreenSig) {
+        // 画面そのものが変わったら試行回数を戻し、設定の表示位置へも置き直す
+        // （起動直後の 1 回目もここを通るが、置き直しても同じ位置なので害はない）
+        lastScreenSig = sig;
+        fitTries      = 0;
+        fitReposition = true;
+    }
+    var need = neededClientSize();
+    if (fitsW(need) && fitsH(need)) {
+        if (fitReposition) { positionToWindow(); fitReposition = false; }
+        return;
+    }
+    if (fitTries >= FIT_TRIES_MAX) { return; }
+    fitTries++;
+    fitWindow();
+    if (fitReposition) { positionToWindow(); }
 }
 
 // Windows 10/11 の窓は、左右と下に「見えない」リサイズ用の余白を持っている。
