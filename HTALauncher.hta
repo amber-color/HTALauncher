@@ -1029,6 +1029,8 @@ window.onload = function () {
     ge("s-dock").onchange     = function () {
         cfg.settings.dockEnabled = (this.value === "true");
         saveCfg();
+        // ドックの余白・区切り線のぶん窓の高さが変わる
+        resizeToGrid();
         // ドックを止めると dock グループがタブとして現れ、始めるとタブが消える
         renderTabs();
         render();
@@ -3139,8 +3141,11 @@ function neededClientSize() {
     var cols  = cfg.settings.gridCols || 5;
     var rows  = cfg.settings.gridRows || 6;
     var cellH = cw + lblH;   // アイコン高さ + ラベル領域
-    return { w: cols * (cw + 4) + 16,               // セル×列 + 余白
-             h: rows * (cellH + 4) + 16 + 44 + 34 }; // セル×行 + 余白 + ヘッダー + タブ
+    // ドックは行数を取り分けるだけだが、ドック自身の上下の余白と区切り線
+    // （dockHeight() の + 12 + 1）のぶんは高さが増える
+    var dockExtra = dockOn() ? 12 + 1 : 0;
+    return { w: cols * (cw + 4) + 16,                           // セル×列 + 余白
+             h: rows * (cellH + 4) + 16 + 44 + 34 + dockExtra }; // セル×行 + 余白 + ヘッダー + タブ + ドック
 }
 
 // 中身がちょうど収まるように窓の大きさを合わせる。
